@@ -1,20 +1,36 @@
+import React from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { NavigationContainer, DarkTheme } from '@react-navigation/native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { colors } from './src/theme/constants';
+import { StoreProvider } from './src/store/useStore';
+import TabNavigator from './src/navigation/TabNavigator';
 
 export default function App() {
   return (
-    <View style={styles.container}>
-      <Text>Open up App.js to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <StoreProvider>
+        <NavigationContainer
+          theme={{
+            ...DarkTheme,
+            colors: {
+              ...DarkTheme.colors,
+              primary: colors.accent,
+              background: colors.background,
+              card: colors.surface,
+              text: colors.textPrimary,
+              border: colors.border,
+              notification: colors.accent,
+            },
+          }}
+        >
+          <StatusBar style="light" />
+          <TabNavigator />
+        </NavigationContainer>
+        </StoreProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
