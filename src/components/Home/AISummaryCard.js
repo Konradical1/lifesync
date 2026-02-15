@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, LayoutAnimation, Platform, UIManager } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, LayoutAnimation, Platform, UIManager, ActivityIndicator } from 'react-native';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
-import { useSummary, useLatestSummary } from '../../store/useStore';
+import { useStore, useSummary, useLatestSummary, useEvents, useJournal, useMood } from '../../store/useStore';
+import { getDaySummary } from '../../api/ai';
 import { colors, spacing, typography, borderRadius } from '../../theme/constants';
 
 function formatDateKey(d) {
@@ -16,13 +17,51 @@ function formatDateKey(d) {
 
 export default function AISummaryCard() {
   const today = formatDateKey(new Date());
-  const summary = useSummary(today) ?? useLatestSummary(today);
+  const storedSummary = useSummary(today) ?? useLatestSummary(today);
+  const events = useEvents(today);
+  const journal = useJournal(today);
+  const mood = useMood(today);
+  const { dispatch } = useStore();
   const [expanded, setExpanded] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const fetchedRef = useRef(false);
 
+  useEffect(() => {
+    if (fetchedRef.current) return;
+    const hasData = events.length > 0 || journal.length > 0 || (mood && (mood.emotion || mood.intensity));
+    if (!hasData) return;
+    fetchedRef.current = true;
+    setLoading(true);
+    getDaySummary({
+      date: today,
+      events,
+      journal,
+      mood: mood || null,
+    })
+      .then((result) => {
+        if (result.ok && result.summary) {
+          dispatch({ type: 'SET_SUMMARY', payload: { date: today, text: result.summary } });
+        }
+      })
+      .finally(() => setLoading(false));
+    // Run once when we have data for today
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const summary = storedSummary;
   const handlePress = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setExpanded((e) => !e);
   };
+
+  if (loading) {
+    return (
+      <View style={[styles.card, styles.loadingCard]}>
+        <ActivityIndicator color={colors.accent} />
+        <Text style={styles.loadingText}>Generating day summary…</Text>
+      </View>
+    );
+  }
 
   const fullText = summary ?? 'No data yet — start logging your day';
   const highlight = summary ? (summary.includes('balanced') ? 'balanced' : summary.includes('track') ? 'on track' : '') : 'start logging';
@@ -52,6 +91,16 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   cardExpanded: {},
+  loadingCard: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 60,
+  },
+  loadingText: {
+    fontSize: typography.footnote.fontSize,
+    color: colors.textSecondary,
+    marginTop: spacing.sm,
+  },
   text: {
     fontSize: typography.callout.fontSize,
     color: colors.textSecondary,

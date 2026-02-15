@@ -20,6 +20,20 @@ Examples of correct outputs:
 - "grilled chicken salad" -> {"description":"Grilled chicken salad","calories":420,"protein":35,"carbs":12,"fat":28}
 - "water" -> {"description":"Water","calories":0,"protein":0,"carbs":0,"fat":0}`;
 
+const EXERCISE_SYSTEM = `You are a fitness assistant. From the user's exercise description, output a single JSON object with activity and estimates.
+
+Rules:
+- Respond ONLY with valid JSON. No markdown, no code blocks, no explanation.
+- Use exactly these keys (lowercase): description, duration, calories.
+- description: short activity name (e.g. "30 min run", "Yoga").
+- duration: estimated duration in minutes (integer). Use reasonable defaults (e.g. "run" -> 30, "yoga" -> 45).
+- calories: estimated calories burned (integer). Use reasonable estimates (e.g. 30 min run ~300, yoga ~180).
+
+Examples:
+- "30 min run" -> {"description":"30 min run","duration":30,"calories":300}
+- "yoga" -> {"description":"Yoga","duration":45,"calories":180}
+- "strength training" -> {"description":"Strength training","duration":45,"calories":220}`;
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -40,15 +54,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: "Text too long" });
   }
 
-  const eventType = type === "food" ? "food" : "generic";
+  const eventType = type === "food" ? "food" : type === "exercise" ? "exercise" : "generic";
   const systemContent =
     eventType === "food"
       ? FOOD_SYSTEM
-      : "Extract structured health event data. Respond only with JSON.";
+      : eventType === "exercise"
+        ? EXERCISE_SYSTEM
+        : "Extract structured health event data. Respond only with JSON.";
   const userContent =
     eventType === "food"
       ? `Food: "${raw}". Estimate macros (calories, protein, carbs, fat). Use realistic numbers—no zeros unless it's water or black coffee. JSON only.`
-      : `Event type: ${eventType}\nText: ${raw}`;
+      : eventType === "exercise"
+        ? `Exercise: "${raw}". Estimate description, duration (minutes), and calories burned. JSON only.`
+        : `Event type: ${eventType}\nText: ${raw}`;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -99,6 +117,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const n = Number(v);
         return Number.isFinite(n) && n >= 0 ? Math.round(n) : 0;
       };
+      if (eventType === "exercise") {
+        const data = {
+          description: typeof get("description") === "string" ? String(get("description")).trim() : undefined,
+          duration: num(get("duration")),
+          calories: num(get("calories")),
+        };
+        return res.json({ ok: true, data });
+      }
       const data = {
         description: typeof get("description") === "string" ? String(get("description")).trim() : undefined,
         calories: num(get("calories")),

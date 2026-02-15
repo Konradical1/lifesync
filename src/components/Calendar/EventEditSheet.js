@@ -20,7 +20,7 @@ import { EVENT_TYPES } from '../../store/mockData';
 import { formatTime12h } from '../../utils/time';
 import { colors, spacing, typography, borderRadius } from '../../theme/constants';
 import { EVENT_TYPE_COLORS } from '../../theme/constants';
-import { extractFood } from '../../api/ai';
+import { extractFood, extractExercise } from '../../api/ai';
 
 function parseTimeToDate(time24) {
   const [h, m] = (time24 || '00:00').split(':').map(Number);
@@ -322,10 +322,36 @@ export default function EventEditSheet({ event, onClose }) {
             <TextInput
               style={styles.input}
               value={description}
-              onChangeText={setDescription}
+              onChangeText={(t) => { setDescription(t); setAiError(null); }}
               placeholder="30 min run"
               placeholderTextColor={colors.textTertiary}
             />
+            {aiError ? (
+              <Text style={styles.aiError}>{aiError}</Text>
+            ) : null}
+            <TouchableOpacity
+              style={[styles.aiButton, aiLoading && styles.aiButtonDisabled]}
+              onPress={async () => {
+                const t = description?.trim();
+                if (!t) return;
+                setAiLoading(true);
+                setAiError(null);
+                const result = await extractExercise(t);
+                setAiLoading(false);
+                if (result.ok && result.data) {
+                  if (result.data.description != null) setDescription(result.data.description);
+                  if (result.data.duration != null) setDuration(String(result.data.duration));
+                  if (result.data.calories != null) setCalories(String(result.data.calories));
+                } else {
+                  setAiError(result.error || 'Could not get exercise details');
+                }
+              }}
+              disabled={aiLoading || !description?.trim()}
+            >
+              <Text style={styles.aiButtonText}>
+                {aiLoading ? 'Getting details…' : 'Fill with AI'}
+              </Text>
+            </TouchableOpacity>
             <Text style={styles.label}>Duration (min)</Text>
             <TextInput
               style={styles.input}

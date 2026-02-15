@@ -1,8 +1,9 @@
-import React from 'react';
-import { ScrollView, Text, View, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { ScrollView, Text, View, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { useEvents } from '../store/useStore';
+import { useStore, useEvents } from '../store/useStore';
+import { getInsights } from '../api/ai';
 import InsightCard from '../components/Insights/InsightCard';
 import { colors, spacing, typography } from '../theme/constants';
 
@@ -13,10 +14,46 @@ function formatDateKey(d) {
   return `${y}-${m}-${day}`;
 }
 
+function getLast7Days() {
+  const out = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    out.push(formatDateKey(d));
+  }
+  return out;
+}
+
 export default function InsightsScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const { state } = useStore();
   const events = useEvents();
+  const dates = getLast7Days();
+  const recentEvents = state.events.filter((e) => dates.includes(e.date));
+  const recentJournal = state.journal.filter((j) => dates.includes(j.date));
+  const moods = dates.map((date) => ({ date, ...state.mood[date] })).filter((m) => m.emotion || m.intensity);
+
+  const [aiInsights, setAiInsights] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState(null);
+
+  const fetchInsights = () => {
+    setAiError(null);
+    setAiLoading(true);
+    getInsights({ events: recentEvents, journal: recentJournal, moods })
+      .then((result) => {
+        if (result.ok) setAiInsights(result.insights);
+        else setAiError(result.error || 'Could not load insights');
+      })
+      .finally(() => setAiLoading(false));
+  };
+
+  useEffect(() => {
+    if (recentEvents.length > 0 || recentJournal.length > 0 || moods.length > 0) {
+      fetchInsights();
+    }
+  }, []);
 
   const today = formatDateKey(new Date());
   const todayEvents = events.filter((e) => e.date === today);
@@ -35,6 +72,29 @@ export default function InsightsScreen() {
         </Text>
         <Text style={styles.title}>Insights</Text>
         <View style={{ width: 50 }} />
+      </View>
+      <View style={styles.aiSection}>
+        <Text style={styles.sectionTitle}>AI insights</Text>
+        {aiLoading && (
+          <View style={styles.loadingRow}>
+            <ActivityIndicator color={colors.accent} size="small" />
+            <Text style={styles.loadingText}>Generating insights…</Text>
+          </View>
+        )}
+        {aiError && (
+          <Text style={styles.errorText}>{aiError}</Text>
+        )}
+        {aiInsights && !aiLoading && (
+          <InsightCard title="From your recent data" body={aiInsights} />
+        )}
+        {!aiInsights && !aiLoading && !aiError && recentEvents.length === 0 && recentJournal.length === 0 && moods.length === 0 && (
+          <Text style={styles.hint}>Log events, journal, and moods to see AI insights.</Text>
+        )}
+        {!aiLoading && (aiInsights || aiError) && (
+          <TouchableOpacity style={styles.refreshButton} onPress={fetchInsights}>
+            <Text style={styles.refreshButtonText}>Refresh insights</Text>
+          </TouchableOpacity>
+        )}
       </View>
       <InsightCard
         title="Today at a glance"
@@ -119,5 +179,47 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
     marginTop: spacing.xs,
     textAlign: 'center',
+  },
+  aiSection: {
+    marginBottom: spacing.md,
+  },
+  sectionTitle: {
+    fontSize: typography.footnote.fontSize,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
+    marginHorizontal: spacing.md,
+  },
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  loadingText: {
+    fontSize: typography.footnote.fontSize,
+    color: colors.textSecondary,
+  },
+  errorText: {
+    fontSize: typography.footnote.fontSize,
+    color: colors.textTertiary,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  hint: {
+    fontSize: typography.footnote.fontSize,
+    color: colors.textTertiary,
+    marginHorizontal: spacing.md,
+    fontStyle: 'italic',
+  },
+  refreshButton: {
+    alignSelf: 'flex-start',
+    marginHorizontal: spacing.md,
+    marginTop: spacing.xs,
+    paddingVertical: spacing.xs,
+  },
+  refreshButtonText: {
+    fontSize: typography.footnote.fontSize,
+    color: colors.accent,
   },
 });
