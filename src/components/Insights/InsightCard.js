@@ -1,18 +1,78 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, borderRadius } from '../../theme/constants';
 
-/** Split text by **...** into segments; odd-indexed segments are highlighted. */
-function parseHighlightSegments(text) {
-  const parts = text.split(/\*\*(.*?)\*\*/g);
+const ICON_MAP = {
+  sleep: 'moon-outline',
+  food: 'restaurant-outline',
+  exercise: 'fitness-outline',
+  meds: 'medkit-outline',
+  journal: 'document-text-outline',
+  mood: 'happy-outline',
+  nutrition: 'nutrition-outline',
+  summary: 'sparkles-outline',
+  progress: 'trending-up-outline',
+};
+
+/** Parse a line into segments: normal, bold, italic, blue, icon. Order: *** then ** then * then [icon:name]. */
+function parseInlineSegments(text) {
   const segments = [];
-  for (let i = 0; i < parts.length; i++) {
-    segments.push({ key: `s${i}`, text: parts[i], highlight: i % 2 === 1 });
+  const re = /\*\*\*(.*?)\*\*\*|\*\*(.*?)\*\*|\*(.*?)\*|\[icon:(\w+)\]/g;
+  let lastIndex = 0;
+  let match;
+  while ((match = re.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      segments.push({ type: 'normal', text: text.slice(lastIndex, match.index) });
+    }
+    if (match[1] !== undefined) segments.push({ type: 'blue', text: match[1] });
+    else if (match[2] !== undefined) segments.push({ type: 'bold', text: match[2] });
+    else if (match[3] !== undefined) segments.push({ type: 'italic', text: match[3] });
+    else if (match[4] !== undefined) segments.push({ type: 'icon', name: match[4] });
+    lastIndex = re.lastIndex;
   }
-  return segments;
+  if (lastIndex < text.length) {
+    segments.push({ type: 'normal', text: text.slice(lastIndex) });
+  }
+  return segments.length ? segments : [{ type: 'normal', text: text }];
 }
 
-/** Render body with # big heading, ## / ### section headers, and **highlighted** text in blue. */
+/** Strip [icon:name] from string and return { iconName, text }. */
+function stripIconFromHeader(str) {
+  const m = str.match(/^\[icon:(\w+)\]\s*(.*)$/);
+  if (m) return { iconName: m[1], text: m[2].trim() };
+  const m2 = str.match(/(.*?)\s*\[icon:(\w+)\]\s*(.*)$/);
+  if (m2) return { iconName: m2[2], text: (m2[1] + ' ' + m2[3]).trim() };
+  return { iconName: null, text: str };
+}
+
+function renderInlineSegments(segments, keyPrefix) {
+  return (
+    <View key={keyPrefix} style={styles.inlineRow}>
+      {segments.map((s, i) => {
+        if (s.type === 'icon') {
+          const icon = ICON_MAP[s.name] || 'ellipse-outline';
+          return (
+            <Ionicons
+              key={`${keyPrefix}-${i}`}
+              name={icon}
+              size={16}
+              color={colors.textSecondary}
+              style={styles.inlineIcon}
+            />
+          );
+        }
+        if (s.type === 'normal') return <Text key={`${keyPrefix}-${i}`} style={styles.body}>{s.text}</Text>;
+        if (s.type === 'bold') return <Text key={`${keyPrefix}-${i}`} style={styles.bold}>{s.text}</Text>;
+        if (s.type === 'italic') return <Text key={`${keyPrefix}-${i}`} style={styles.italic}>{s.text}</Text>;
+        if (s.type === 'blue') return <Text key={`${keyPrefix}-${i}`} style={styles.highlight}>{s.text}</Text>;
+        return null;
+      })}
+    </View>
+  );
+}
+
+/** Render body with # big heading, ## / ### section headers, icons, and * / ** / *** emphasis. */
 function renderFormattedBody(body) {
   const lines = (body || '').split(/\n/);
   const elements = [];
@@ -21,34 +81,61 @@ function renderFormattedBody(body) {
     const line = lines[i];
     const trimmed = line.trim();
     if (trimmed.startsWith('### ')) {
-      const subText = trimmed.slice(4).trim();
-      if (subText) {
+      const raw = trimmed.slice(4).trim();
+      const { iconName, text } = stripIconFromHeader(raw);
+      if (text || iconName) {
         elements.push(
-          <Text key={key++} style={styles.subHeader}>
-            {subText}
-          </Text>
+          <View key={key++} style={styles.headerRow}>
+            {iconName && (
+              <Ionicons
+                name={ICON_MAP[iconName] || 'ellipse-outline'}
+                size={18}
+                color={colors.textPrimary}
+                style={styles.headerIcon}
+              />
+            )}
+            <Text style={styles.subHeader}>{text}</Text>
+          </View>
         );
       }
       continue;
     }
     if (trimmed.startsWith('## ')) {
-      const headerText = trimmed.slice(3).trim();
-      if (headerText) {
+      const raw = trimmed.slice(3).trim();
+      const { iconName, text } = stripIconFromHeader(raw);
+      if (text || iconName) {
         elements.push(
-          <Text key={key++} style={styles.sectionHeader}>
-            {headerText}
-          </Text>
+          <View key={key++} style={styles.headerRow}>
+            {iconName && (
+              <Ionicons
+                name={ICON_MAP[iconName] || 'ellipse-outline'}
+                size={20}
+                color={colors.textPrimary}
+                style={styles.headerIcon}
+              />
+            )}
+            <Text style={styles.sectionHeader}>{text}</Text>
+          </View>
         );
       }
       continue;
     }
     if (trimmed.startsWith('# ') && !trimmed.startsWith('## ')) {
-      const bigHeading = trimmed.slice(2).trim();
-      if (bigHeading) {
+      const raw = trimmed.slice(2).trim();
+      const { iconName, text } = stripIconFromHeader(raw);
+      if (text || iconName) {
         elements.push(
-          <Text key={key++} style={styles.bigHeading}>
-            {bigHeading}
-          </Text>
+          <View key={key++} style={styles.headerRow}>
+            {iconName && (
+              <Ionicons
+                name={ICON_MAP[iconName] || 'ellipse-outline'}
+                size={24}
+                color={colors.textPrimary}
+                style={styles.headerIcon}
+              />
+            )}
+            <Text style={styles.bigHeading}>{text}</Text>
+          </View>
         );
       }
       continue;
@@ -57,20 +144,8 @@ function renderFormattedBody(body) {
       elements.push(<View key={key++} style={styles.paragraphGap} />);
       continue;
     }
-    const segments = parseHighlightSegments(line);
-    elements.push(
-      <Text key={key++} style={styles.body}>
-        {segments.map((s) =>
-          s.highlight ? (
-            <Text key={s.key} style={styles.highlight}>
-              {s.text}
-            </Text>
-          ) : (
-            s.text
-          )
-        )}
-      </Text>
-    );
+    const segments = parseInlineSegments(line);
+    elements.push(renderInlineSegments(segments, key++));
   }
   return elements;
 }
@@ -131,9 +206,40 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 24,
   },
+  bold: {
+    fontSize: typography.body.fontSize,
+    color: colors.textSecondary,
+    lineHeight: 24,
+    fontWeight: '700',
+  },
+  italic: {
+    fontSize: typography.body.fontSize,
+    color: colors.textSecondary,
+    lineHeight: 24,
+    fontStyle: 'italic',
+  },
   highlight: {
+    fontSize: typography.body.fontSize,
     color: colors.accent,
+    lineHeight: 24,
     fontWeight: '600',
+  },
+  inlineRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    marginBottom: spacing.xxs,
+  },
+  inlineIcon: {
+    marginHorizontal: spacing.xxs,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  headerIcon: {
+    marginRight: spacing.xs,
   },
   formattedBody: {
     marginTop: spacing.xs,
