@@ -59,7 +59,23 @@ export default function AISummaryCard() {
     setExpanded((e) => !e);
   };
 
-  if (loading) {
+  const handleRefresh = () => {
+    setLoading(true);
+    getDaySummary({
+      date: today,
+      events,
+      journal,
+      mood: mood || null,
+    })
+      .then((result) => {
+        if (result.ok && result.summary) {
+          dispatch({ type: 'SET_SUMMARY', payload: { date: today, text: result.summary } });
+        }
+      })
+      .finally(() => setLoading(false));
+  };
+
+  if (loading && !summary) {
     return (
       <View style={[styles.card, styles.loadingCard]}>
         <ActivityIndicator color={colors.accent} />
@@ -73,27 +89,38 @@ export default function AISummaryCard() {
   const parts = highlight ? fullText.split(highlight) : [fullText];
 
   return (
-    <TouchableOpacity
-      activeOpacity={0.9}
-      onPress={handlePress}
-      style={[styles.card, expanded && styles.cardExpanded]}
-    >
-      <Text style={styles.text} numberOfLines={expanded ? undefined : 2}>
-        {parts[0]}
-        {parts.length > 1 ? <Text style={styles.highlight}>{highlight}</Text> : null}
-        {parts[1] ?? ''}
-      </Text>
-    </TouchableOpacity>
+    <View style={styles.wrap}>
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={handlePress}
+        style={[styles.card, expanded && styles.cardExpanded]}
+      >
+        <Text style={styles.text} numberOfLines={expanded ? undefined : 2}>
+          {parts[0]}
+          {parts.length > 1 ? <Text style={styles.highlight}>{highlight}</Text> : null}
+          {parts[1] ?? ''}
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh} disabled={loading}>
+        {loading ? (
+          <ActivityIndicator size="small" color={colors.accent} />
+        ) : (
+          <Text style={styles.refreshButtonText}>Refresh</Text>
+        )}
+      </TouchableOpacity>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrap: {
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.md,
+  },
   card: {
     backgroundColor: colors.surface,
     borderRadius: borderRadius.md,
     padding: spacing.md,
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.md,
   },
   cardExpanded: {},
   loadingCard: {
@@ -114,5 +141,17 @@ const styles = StyleSheet.create({
   highlight: {
     color: colors.accent,
     fontWeight: '600',
+  },
+  refreshButton: {
+    marginTop: spacing.sm,
+    paddingVertical: spacing.xs,
+    alignSelf: 'flex-start',
+    minWidth: 64,
+    alignItems: 'center',
+  },
+  refreshButtonText: {
+    fontSize: typography.footnote.fontSize,
+    color: colors.accent,
+    fontWeight: '500',
   },
 });

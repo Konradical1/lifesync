@@ -11,10 +11,10 @@ export default function Header() {
     <View style={styles.container}>
       <Text style={styles.title}>Journal X</Text>
       <TouchableOpacity
-        onPress={() => navigation.navigate('HomeTab', { screen: 'Insights' })}
+        onPress={() => navigation.navigate('HomeTab', { screen: 'Profile' })}
         hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
       >
-        <Ionicons name="stats-chart-outline" size={24} color={colors.accent} />
+        <Ionicons name="person-outline" size={24} color={colors.accent} />
       </TouchableOpacity>
     </View>
   );

@@ -6,8 +6,11 @@ import {
   getInitialMockMoodEntries,
   EVENT_TYPES,
 } from './mockData';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { isSupabaseConfigured } from '../api/supabase';
 import { loadFromSupabase, saveFullStateToSupabase } from '../api/supabaseSync';
+
+const PROFILE_STORAGE_KEY = '@journalx_profile';
 
 const StoreContext = createContext(null);
 
@@ -16,6 +19,15 @@ const initialState = {
   journal: initialMockJournal,
   summaries: getInitialMockSummaries(),
   moodEntries: getInitialMockMoodEntries(),
+  profile: {
+    name: '',
+    age: '',
+    height: '',
+    weight: '',
+    medicalConditions: '',
+    calorieGoal: '',
+    proteinGoal: '',
+  },
   loading: false,
 };
 
@@ -28,6 +40,7 @@ function storeReducer(state, action) {
         journal: action.payload.journal ?? state.journal,
         summaries: action.payload.summaries ?? state.summaries,
         moodEntries: action.payload.moodEntries ?? state.moodEntries,
+        profile: action.payload.profile != null ? { ...state.profile, ...action.payload.profile } : state.profile,
         loading: false,
       };
     case 'SET_LOADING':
@@ -93,6 +106,11 @@ function storeReducer(state, action) {
         ...state,
         moodEntries: state.moodEntries.filter((m) => m.id !== action.payload.id),
       };
+    case 'UPDATE_PROFILE':
+      return {
+        ...state,
+        profile: { ...state.profile, ...action.payload },
+      };
     default:
       return state;
   }
@@ -104,9 +122,22 @@ export function StoreProvider({ children }) {
   const [state, dispatch] = useReducer(storeReducer, initialState);
   const saveTimeoutRef = useRef(null);
   const isInitialMount = useRef(true);
+  const profileLoadedRef = useRef(false);
 
-  // Load from Supabase on mount
+  // Load from Supabase and profile from AsyncStorage on mount
   useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const raw = await AsyncStorage.getItem(PROFILE_STORAGE_KEY);
+        if (raw) {
+          const profile = JSON.parse(raw);
+          dispatch({ type: 'HYDRATE', payload: { profile } });
+        }
+      } catch (_) {}
+      profileLoadedRef.current = true;
+    };
+    loadProfile();
+
     if (!isSupabaseConfigured()) return;
     dispatch({ type: 'SET_LOADING', payload: true });
     loadFromSupabase()
@@ -137,7 +168,13 @@ export function StoreProvider({ children }) {
     return () => {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     };
-  }, [state.events, state.journal, state.summaries, state.moodEntries]);
+  }, [state.events, state.journal, state.summaries, state.moodEntries, state.profile]);
+
+  // Save profile to AsyncStorage when it changes (after initial load)
+  useEffect(() => {
+    if (!profileLoadedRef.current) return;
+    AsyncStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(state.profile)).catch(() => {});
+  }, [state.profile]);
 
   return (
     <StoreContext.Provider value={{ state, dispatch }}>
@@ -216,4 +253,17 @@ export function useRecentEvents(count = 3) {
     if (result.length >= count) break;
   }
   return result;
+}
+
+/** Today's total calories and protein from food events. */
+export function useTodayCaloriesAndProtein() {
+  const { state } = useStore();
+  const today = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
+  const foodEvents = state.events.filter((e) => e.type === EVENT_TYPES.food && e.date === today);
+  const calories = foodEvents.reduce((sum, e) => sum + (Number(e.calories) || 0), 0);
+  const protein = foodEvents.reduce((sum, e) => sum + (Number(e.protein) || 0), 0);
+  return { calories, protein };
 }

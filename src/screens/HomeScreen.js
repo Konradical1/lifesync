@@ -5,6 +5,7 @@ import Header from '../components/Home/Header';
 import AISummaryCard from '../components/Home/AISummaryCard';
 import MoodSelector from '../components/Home/MoodSelector';
 import JournalEntry from '../components/Home/JournalEntry';
+import CalorieProteinGoals from '../components/Home/CalorieProteinGoals';
 import RecentEventsList from '../components/Home/RecentEventsList';
 import { colors, spacing, typography } from '../theme/constants';
 
@@ -31,6 +32,9 @@ export default function HomeScreen() {
       </View>
       <View style={[styles.section, styles.sectionShaded]}>
         <JournalEntry />
+      </View>
+      <View style={styles.section}>
+        <CalorieProteinGoals />
       </View>
       <View style={styles.section}>
         <RecentEventsList />

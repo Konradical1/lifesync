@@ -4,15 +4,20 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography } from '../theme/constants';
 import HomeStack from './HomeStack';
+import InsightsStack from './InsightsStack';
 import AddEventStack from './AddEventStack';
 import CalendarStack from './CalendarStack';
+import SettingsStack from './SettingsStack';
 
 const Tab = createBottomTabNavigator();
 
 function AddEventTabIcon({ focused }) {
   return (
-    <View style={[styles.addButton, focused && styles.addButtonFocused]}>
-      <Text style={[styles.addButtonText, focused && styles.addButtonTextFocused]}>+</Text>
+    <View style={styles.addButtonWrapper}>
+      <View style={[styles.addButtonGlow]} />
+      <View style={[styles.addButton, focused && styles.addButtonFocused]}>
+        <Text style={[styles.addButtonText, focused && styles.addButtonTextFocused]}>+</Text>
+      </View>
     </View>
   );
 }
@@ -40,6 +45,16 @@ export default function TabNavigator() {
         }}
       />
       <Tab.Screen
+        name="InsightsTab"
+        component={InsightsStack}
+        options={{
+          title: 'Insights',
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons name="stats-chart-outline" size={24} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
         name="AddEventTab"
         component={AddEventStack}
         options={{
@@ -55,6 +70,16 @@ export default function TabNavigator() {
           title: 'Calendar',
           tabBarIcon: ({ focused, color }) => (
             <Ionicons name="calendar-outline" size={24} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="SettingsTab"
+        component={SettingsStack}
+        options={{
+          title: 'Settings',
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons name="settings-outline" size={24} color={color} />
           ),
         }}
       />
@@ -75,6 +100,19 @@ const styles = StyleSheet.create({
   tabIcon: {
     fontSize: 22,
   },
+  addButtonWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Platform.OS === 'ios' ? 0 : 8,
+  },
+  addButtonGlow: {
+    position: 'absolute',
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: colors.accent,
+    opacity: 0.35,
+  },
   addButton: {
     width: 56,
     height: 56,
@@ -82,10 +120,27 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Platform.OS === 'ios' ? 0 : 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.accent,
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.9,
+        shadowRadius: 14,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
   },
   addButtonFocused: {
     backgroundColor: colors.accent,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.accent,
+        shadowOpacity: 1,
+        shadowRadius: 18,
+      },
+    }),
   },
   addButtonText: {
     fontSize: 36,

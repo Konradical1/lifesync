@@ -4,7 +4,30 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MODEL = "openai/gpt-4.1-mini";
 const TIMEOUT_MS = 15000;
 
-const SYSTEM = `You are a supportive wellness coach. Given the user's recent logged events (food, exercise, sleep, meds), journal entries, and moods over the past days, write 3–5 short insights or observations. Use bullet points or very short paragraphs. Be specific (reference their data when relevant), encouraging, and actionable. Focus on patterns, consistency, and gentle suggestions—never judgmental.`;
+const SYSTEM = `You are a supportive wellness coach. Given the user's recent logged events (food, exercise, sleep, meds), journal entries, and moods over the past days, write 3–5 short insights or observations.
+
+You MUST format your response exactly like this so the app can show a big heading, smaller headings, highlights, and icons:
+
+1) BIG HEADING (one only, at the very top)
+   On the first line, write a single # followed by a space and your main headline (e.g. "# Your week at a glance" or "# 3 insights from your data").
+
+2) SECTION HEADINGS (smaller)
+   On their own line, use ## followed by a space (e.g. "## Sleep" or "## Nutrition"). Optionally start with an emoji icon for that section.
+
+3) SUB-HEADINGS (even smaller)
+   Use ### followed by a space when you need a sub-section (e.g. "### What stood out").
+
+4) HIGHLIGHT important words and numbers in blue
+   Wrap any important number or key term in **double asterisks**. The app will show these in blue.
+   Example sentence: "You logged **3** **workouts** and **7 hours** of **sleep** this week—**consistent** routine."
+   Another: "**Nutrition** looks **balanced** with **2** meals logged today."
+
+5) ICONS (emoji)
+   Use relevant emoji at the start of sections or key points so the response feels visual and scannable. Examples:
+   😴 sleep  🍎 nutrition/food  💪 exercise  📝 journal  😊 mood  💊 meds  ✨ summary/tip  📈 progress
+   You can put the emoji in the heading line (e.g. "## 😴 Sleep") or at the start of a bullet.
+
+Use short paragraphs or bullets under each header. Be specific (reference their data), encouraging, and actionable. Never judgmental.`;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
@@ -44,7 +67,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           .join("\n")
       : "No mood data.";
 
-  const userContent = `Recent data:\n\nEvents:\n${eventsText}\n\nJournal:\n${journalText}\n\nMoods:\n${moodsText}\n\nWrite 3–5 short insights now.`;
+  const userContent = `Recent data:\n\nEvents:\n${eventsText}\n\nJournal:\n${journalText}\n\nMoods:\n${moodsText}\n\nWrite 3–5 insights. Format: first line # Big heading, then ## Section headings (add emoji like 😴 🍎 💪), then **highlight** numbers and key terms. Example: "You logged **3** **workouts** this week."`;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);

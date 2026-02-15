@@ -11,6 +11,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { useStore } from '../../store/useStore';
 import { getTimeNow24h } from '../../utils/time';
 import { colors, spacing, typography, borderRadius } from '../../theme/constants';
@@ -126,7 +127,10 @@ export default function JournalEntry() {
   return (
     <View style={styles.wrap}>
       <View style={styles.labelRow}>
-        <Text style={styles.label}>Journal</Text>
+        <View style={styles.labelWithIcon}>
+          <Ionicons name="pencil-outline" size={14} color={colors.textSecondary} style={styles.pencilIcon} />
+          <Text style={styles.label}>Journal</Text>
+        </View>
         <TouchableOpacity
           onPress={() => navigation.navigate('JournalHistory')}
           style={styles.historyButton}
@@ -162,6 +166,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: spacing.xs,
+  },
+  labelWithIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  pencilIcon: {
+    marginRight: spacing.xxs,
   },
   label: {
     fontSize: typography.footnote.fontSize,

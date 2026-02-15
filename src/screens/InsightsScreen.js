@@ -72,9 +72,13 @@ export default function InsightsScreen() {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.header}>
-        <Text style={styles.backLink} onPress={() => navigation.goBack()}>
-          ← Back
-        </Text>
+        {navigation.canGoBack() ? (
+          <Text style={styles.backLink} onPress={() => navigation.goBack()}>
+            ← Back
+          </Text>
+        ) : (
+          <View style={{ width: 50 }} />
+        )}
         <Text style={styles.title}>Insights</Text>
         <View style={{ width: 50 }} />
       </View>
@@ -90,7 +94,7 @@ export default function InsightsScreen() {
           <Text style={styles.errorText}>{aiError}</Text>
         )}
         {aiInsights && !aiLoading && (
-          <InsightCard title="From your recent data" body={aiInsights} />
+          <InsightCard title="From your recent data" body={aiInsights} formatted />
         )}
         {!aiInsights && !aiLoading && !aiError && recentEvents.length === 0 && recentJournal.length === 0 && moods.length === 0 && (
           <Text style={styles.hint}>Log events, journal, and moods to see AI insights.</Text>

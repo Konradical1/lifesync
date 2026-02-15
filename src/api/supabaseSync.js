@@ -60,18 +60,19 @@ function rowToEvent(row) {
 }
 
 /**
- * Load all data from Supabase. Returns { events, journal, summaries, moodEntries } or null on error.
+ * Load all data from Supabase. Returns { events, journal, summaries, moodEntries, profile } or null on error.
  */
 export async function loadFromSupabase() {
   const userId = await ensureSignedIn();
   if (!userId) return null;
 
   try {
-    const [eventsRes, journalRes, summariesRes, moodRes] = await Promise.all([
+    const [eventsRes, journalRes, summariesRes, moodRes, profileRes] = await Promise.all([
       supabase.from('events').select('*').order('created_at', { ascending: false }),
       supabase.from('journal_entries').select('*').order('date').order('time'),
       supabase.from('summaries').select('date, text, created_at, updated_at').order('date'),
       supabase.from('mood').select('id, date, time, start_time, end_time, emotion, intensity, created_at').order('created_at', { ascending: false }),
+      supabase.from('profile').select('*').eq('user_id', userId).maybeSingle(),
     ]);
 
     const events = (eventsRes.data ?? []).map(rowToEvent);
@@ -100,7 +101,21 @@ export async function loadFromSupabase() {
       createdAt: r.created_at ?? null,
     }));
 
-    return { events, journal, summaries, moodEntries };
+    let profile = null;
+    if (profileRes.data) {
+      const p = profileRes.data;
+      profile = {
+        name: p.name ?? '',
+        age: p.age ?? '',
+        height: p.height ?? '',
+        weight: p.weight ?? '',
+        medicalConditions: p.medical_conditions ?? '',
+        calorieGoal: p.calorie_goal != null ? String(p.calorie_goal) : '',
+        proteinGoal: p.protein_goal != null ? String(p.protein_goal) : '',
+      };
+    }
+
+    return { events, journal, summaries, moodEntries, profile };
   } catch (err) {
     console.warn('[Supabase] Load failed:', err);
     return null;
@@ -245,6 +260,35 @@ export async function deleteEventFromSupabase(eventId) {
 }
 
 /**
+ * Save profile to Supabase (upsert by user_id).
+ */
+export async function saveProfileToSupabase(profile) {
+  const userId = await ensureSignedIn();
+  if (!userId || !profile) return false;
+
+  const row = {
+    user_id: userId,
+    name: profile.name ?? null,
+    age: profile.age ?? null,
+    height: profile.height ?? null,
+    weight: profile.weight ?? null,
+    medical_conditions: profile.medicalConditions ?? null,
+    calorie_goal: profile.calorieGoal != null && profile.calorieGoal !== '' ? parseInt(profile.calorieGoal, 10) : null,
+    protein_goal: profile.proteinGoal != null && profile.proteinGoal !== '' ? parseInt(profile.proteinGoal, 10) : null,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error } = await supabase.from('profile').upsert(row, {
+    onConflict: 'user_id',
+  });
+  if (error) {
+    console.warn('[Supabase] Save profile failed:', error);
+    return false;
+  }
+  return true;
+}
+
+/**
  * Save full state to Supabase. Call after any store change.
  */
 export async function saveFullStateToSupabase(state) {
@@ -254,5 +298,6 @@ export async function saveFullStateToSupabase(state) {
     saveJournalToSupabase(state.journal),
     saveSummariesToSupabase(state.summaries),
     saveMoodEntriesToSupabase(state.moodEntries),
+    saveProfileToSupabase(state.profile),
   ]);
 }
