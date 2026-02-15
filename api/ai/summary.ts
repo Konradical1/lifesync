@@ -4,7 +4,7 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MODEL = "openai/gpt-4.1-mini";
 const TIMEOUT_MS = 15000;
 
-const SYSTEM = `You are a supportive wellness assistant. Given a day's logged events (food, exercise, sleep, meds, etc.), journal entry, and mood, write a short 2–3 sentence daily summary. Be warm and specific. Mention what they did well. If there's little data, say something encouraging to log more. Keep tone concise and positive.`;
+const SYSTEM = `You are a supportive wellness assistant. Given a day's logged events (food, exercise, sleep, meds, etc.), journal entry, mood, and optionally the user's profile (name, age, height, weight, medical conditions, daily calorie goal, daily protein goal), write a short 2–3 sentence daily summary. Be warm and specific. Mention what they did well. If they have calorie or protein goals and logged food, you may reference progress toward those goals (e.g. "You're at X of your Y cal goal"). If they have medical conditions, be mindful of them in tone—never give medical advice, just supportive context. If there's little data, say something encouraging to log more. Keep tone concise and positive.`;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
@@ -16,15 +16,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: "Server misconfiguration" });
   }
 
-  const { date, events = [], journal = [], mood } = req.body ?? {};
+  const { date, events = [], journal = [], mood, profile } = req.body ?? {};
   const dateStr = typeof date === "string" ? date : "";
 
   const eventsText =
     events.length > 0
       ? events
           .map(
-            (e: { type?: string; description?: string; time?: string; duration?: number; calories?: number; name?: string; note?: string }) =>
-              `- ${e.type}: ${e.description ?? e.name ?? e.note ?? ""} ${e.time ?? ""} ${e.duration ? e.duration + " min" : ""} ${e.calories ? e.calories + " cal" : ""}`.trim()
+            (e: { type?: string; description?: string; time?: string; duration?: number; calories?: number; protein?: number; name?: string; note?: string }) =>
+              `- ${e.type}: ${e.description ?? e.name ?? e.note ?? ""} ${e.time ?? ""} ${e.duration ? e.duration + " min" : ""} ${e.calories ? e.calories + " cal" : ""} ${e.protein != null ? e.protein + " g protein" : ""}`.trim()
           )
           .join("\n")
       : "No events logged.";
@@ -34,7 +34,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       : "No journal entry.";
   const moodText = mood && (mood.emotion || mood.intensity) ? `Mood: ${mood.emotion ?? "—"}, intensity ${mood.intensity ?? "—"}` : "No mood logged.";
 
-  const userContent = `Date: ${dateStr || "Today"}\n\nEvents:\n${eventsText}\n\nJournal:\n${journalText}\n\n${moodText}\n\nWrite the 2–3 sentence daily summary now.`;
+  const profileParts: string[] = [];
+  if (profile && typeof profile === "object") {
+    const p = profile as Record<string, unknown>;
+    if (p.name && String(p.name).trim()) profileParts.push(`Name: ${String(p.name).trim()}`);
+    if (p.age && String(p.age).trim()) profileParts.push(`Age: ${String(p.age).trim()}`);
+    if (p.height && String(p.height).trim()) profileParts.push(`Height: ${String(p.height).trim()}`);
+    if (p.weight && String(p.weight).trim()) profileParts.push(`Weight: ${String(p.weight).trim()}`);
+    if (p.calorieGoal != null && String(p.calorieGoal).trim()) profileParts.push(`Daily calorie goal: ${String(p.calorieGoal).trim()}`);
+    if (p.proteinGoal != null && String(p.proteinGoal).trim()) profileParts.push(`Daily protein goal (g): ${String(p.proteinGoal).trim()}`);
+    if (p.medicalConditions && String(p.medicalConditions).trim()) profileParts.push(`Medical conditions / notes: ${String(p.medicalConditions).trim()}`);
+  }
+  const profileText = profileParts.length > 0 ? `Profile:\n${profileParts.join("\n")}` : "";
+
+  const userContent = profileText
+    ? `Date: ${dateStr || "Today"}\n\n${profileText}\n\nEvents:\n${eventsText}\n\nJournal:\n${journalText}\n\n${moodText}\n\nWrite the 2–3 sentence daily summary now. Use profile context (e.g. goals, name) when relevant.`
+    : `Date: ${dateStr || "Today"}\n\nEvents:\n${eventsText}\n\nJournal:\n${journalText}\n\n${moodText}\n\nWrite the 2–3 sentence daily summary now.`;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);

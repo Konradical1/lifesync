@@ -26,7 +26,8 @@ export default function AISummaryCard() {
   const events = useEvents(today);
   const journal = useJournal(today);
   const mood = useMood(today);
-  const { dispatch } = useStore();
+  const { state, dispatch } = useStore();
+  const profile = state.profile || {};
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
   const fetchedRef = useRef(false);
@@ -43,6 +44,7 @@ export default function AISummaryCard() {
       events,
       journal,
       mood: mood || null,
+      profile,
     })
       .then((result) => {
         if (result.ok && result.summary) {
@@ -66,6 +68,7 @@ export default function AISummaryCard() {
       events,
       journal,
       mood: mood || null,
+      profile,
     })
       .then((result) => {
         if (result.ok && result.summary) {
