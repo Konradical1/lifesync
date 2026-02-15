@@ -6,6 +6,7 @@ import { useStore } from '../../store/useStore';
 import { EVENT_TYPES } from '../../store/mockData';
 import { getTimeNow24h } from '../../utils/time';
 import { colors, spacing, typography, borderRadius } from '../../theme/constants';
+import { extractFood } from '../../api/ai';
 
 function formatDateKey(d) {
   const y = d.getFullYear();
@@ -14,27 +15,8 @@ function formatDateKey(d) {
   return `${y}-${m}-${day}`;
 }
 
-
 function generateId() {
   return 'e_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
-}
-
-// Mock AI extraction
-function mockExtractNutrients(description) {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const lower = (description || '').toLowerCase();
-      let c = 200, p = 10, carb = 25;
-      if (lower.includes('oatmeal') || lower.includes('oat')) {
-        c = 320; p = 12; carb = 58;
-      } else if (lower.includes('salad') || lower.includes('chicken')) {
-        c = 420; p = 35; carb = 12;
-      } else if (lower.includes('pizza')) {
-        c = 600; p = 25; carb = 70;
-      }
-      resolve({ calories: c, protein: p, carbs: carb });
-    }, 800);
-  });
 }
 
 export default function FoodEventScreen() {
@@ -49,6 +31,7 @@ export default function FoodEventScreen() {
   const [protein, setProtein] = useState('');
   const [carbs, setCarbs] = useState('');
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState(null);
 
   const handleSave = async () => {
     if (saved) {
@@ -57,12 +40,22 @@ export default function FoodEventScreen() {
     }
     if (!description.trim()) return;
     setLoading(true);
-    const result = await mockExtractNutrients(description);
+    setError(null);
+    const result = await extractFood(description.trim());
     setLoading(false);
-    setExtracted(result);
-    setCalories(String(result.calories));
-    setProtein(String(result.protein));
-    setCarbs(String(result.carbs));
+    if (result.ok && result.data) {
+      setExtracted(result.data);
+      setCalories(String(result.data.calories ?? 0));
+      setProtein(String(result.data.protein ?? 0));
+      setCarbs(String(result.data.carbs ?? 0));
+      if (result.data.description) setDescription(result.data.description);
+    } else {
+      setError(result.error || 'Could not get macros');
+      setExtracted({ calories: 0, protein: 0, carbs: 0 });
+      setCalories('');
+      setProtein('');
+      setCarbs('');
+    }
   };
 
   const handleFinalSave = () => {
@@ -109,6 +102,9 @@ export default function FoodEventScreen() {
             <Text style={styles.loadingText}>Extracting nutrition…</Text>
           </View>
         )}
+        {error ? (
+          <Text style={styles.errorText}>{error}</Text>
+        ) : null}
         {extracted && !loading && (
           <View style={styles.nutrients}>
             <Text style={styles.label}>Calories</Text>
@@ -196,6 +192,11 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: typography.footnote.fontSize,
     color: colors.textSecondary,
+  },
+  errorText: {
+    fontSize: typography.footnote.fontSize,
+    color: colors.textTertiary,
+    marginBottom: spacing.sm,
   },
   nutrients: {
     marginBottom: spacing.md,

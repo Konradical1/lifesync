@@ -5,10 +5,20 @@ const FAST_MODEL = "openai/gpt-4.1-mini";
 const MAX_BODY_CHARS = 2000;
 const TIMEOUT_MS = 5000;
 
-const FOOD_SYSTEM = `You are a nutrition assistant. Extract food and macros from the user's text.
-Respond ONLY with a single JSON object, no markdown, no explanation. Use this exact shape:
-{"description":"short food name","calories":number,"protein":number,"carbs":number,"fat":number}
-Use 0 for any unknown value. Keep description brief (e.g. "Oatmeal with banana").`;
+const FOOD_SYSTEM = `You are a nutrition assistant. From the user's food description, output a single JSON object with estimated macros.
+
+CRITICAL: Never return 0 for calories, protein, carbs, or fat for any real food (meals, snacks, bars, drinks with calories). Only use 0 for things like water or black coffee. Every real food has calories and at least some protein, carbs, or fat—always estimate reasonable numbers.
+
+Rules:
+- Respond ONLY with valid JSON. No markdown, no code blocks, no explanation.
+- Use exactly these keys (lowercase): description, calories, protein, carbs, fat.
+- description: short food name. calories, protein, carbs, fat: integers only.
+
+Examples of correct outputs:
+- "oatmeal with banana" -> {"description":"Oatmeal with banana","calories":320,"protein":12,"carbs":58,"fat":6}
+- "protein bar" -> {"description":"Protein bar","calories":200,"protein":20,"carbs":22,"fat":5}
+- "grilled chicken salad" -> {"description":"Grilled chicken salad","calories":420,"protein":35,"carbs":12,"fat":28}
+- "water" -> {"description":"Water","calories":0,"protein":0,"carbs":0,"fat":0}`;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
@@ -35,7 +45,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     eventType === "food"
       ? FOOD_SYSTEM
       : "Extract structured health event data. Respond only with JSON.";
-  const userContent = `Event type: ${eventType}\nText: ${raw}`;
+  const userContent =
+    eventType === "food"
+      ? `Food: "${raw}". Estimate macros (calories, protein, carbs, fat). Use realistic numbers—no zeros unless it's water or black coffee. JSON only.`
+      : `Event type: ${eventType}\nText: ${raw}`;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -72,10 +85,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(502).json({ error: "Empty AI response" });
     }
 
-    // Optional: parse and re-emit clean JSON so frontend gets a stable shape
+    // Strip markdown code blocks if present (e.g. ```json ... ```)
+    let jsonStr = content.trim();
+    const codeBlock = jsonStr.match(/^```(?:json)?\s*([\s\S]*?)```$/);
+    if (codeBlock) jsonStr = codeBlock[1].trim();
+
     try {
-      const parsed = JSON.parse(content) as Record<string, unknown>;
-      return res.json({ ok: true, data: parsed });
+      const parsed = JSON.parse(jsonStr) as Record<string, unknown>;
+      const get = (key: string) =>
+        parsed[key] ?? parsed[key.charAt(0).toUpperCase() + key.slice(1)];
+      const num = (v: unknown): number => {
+        if (v == null) return 0;
+        const n = Number(v);
+        return Number.isFinite(n) && n >= 0 ? Math.round(n) : 0;
+      };
+      const data = {
+        description: typeof get("description") === "string" ? String(get("description")).trim() : undefined,
+        calories: num(get("calories")),
+        protein: num(get("protein")),
+        carbs: num(get("carbs")),
+        fat: num(get("fat")),
+      };
+      return res.json({ ok: true, data });
     } catch {
       return res.json({ ok: true, raw: content });
     }

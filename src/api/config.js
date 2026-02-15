@@ -8,7 +8,7 @@
  */
 export const API_BASE_URL =
   (typeof process !== "undefined" && process.env?.EXPO_PUBLIC_API_URL)?.replace?.(/\/$/, "") ||
-  "https://your-api.vercel.app";
+  "https://journal-x-eosin.vercel.app";
 
 export const AI = {
   extract: `${API_BASE_URL}/api/ai/extract`,
