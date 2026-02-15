@@ -1,10 +1,11 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { View, Text, FlatList, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, FlatList, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import { useEvents } from '../store/useStore';
+import { useEvents, useStore } from '../store/useStore';
 import DayView from '../components/Calendar/DayView';
 import EventEditSheet from '../components/Calendar/EventEditSheet';
+import MoodEditSheet from '../components/Calendar/MoodEditSheet';
 import { colors, spacing, typography } from '../theme/constants';
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -38,13 +39,20 @@ export default function CalendarScreen() {
   const route = useRoute();
   const navigation = useNavigation();
   const events = useEvents();
+  const { state } = useStore();
+  const moodEntries = state.moodEntries;
   const flatListRef = useRef(null);
 
+  const mode = route.params?.mode ?? 'events';
+  const isMoodMode = mode === 'mood';
+
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [selectedMood, setSelectedMood] = useState(null);
   const [dates] = useState(() => generateDatesAround(new Date()));
   const [initialIndex, setInitialIndex] = useState(Math.floor(dates.length / 2));
   const [focusDate, setFocusDate] = useState(null);
   const [focusEventId, setFocusEventId] = useState(null);
+  const [focusMoodId, setFocusMoodId] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
 
   const handleDragStart = useCallback(() => setIsDragging(true), []);
@@ -62,30 +70,50 @@ export default function CalendarScreen() {
 
   const routeFocusDate = route.params?.focusDate;
   const routeFocusEventId = route.params?.focusEventId;
+  const routeFocusMoodId = route.params?.focusMoodId;
 
   useEffect(() => {
-    if (routeFocusDate && dates.includes(routeFocusDate) && routeFocusEventId) {
+    if (routeFocusDate && dates.includes(routeFocusDate)) {
       const idx = dates.indexOf(routeFocusDate);
       setInitialIndex(idx);
       setFocusDate(routeFocusDate);
-      setFocusEventId(routeFocusEventId);
       flatListRef.current?.scrollToIndex({ index: idx, animated: false });
-      const ev = events.find((e) => e.id === routeFocusEventId);
-      if (ev) setSelectedEvent(ev);
-      navigation.setParams({ focusDate: undefined, focusEventId: undefined });
+      if (routeFocusEventId) {
+        setFocusEventId(routeFocusEventId);
+        const ev = events.find((e) => e.id === routeFocusEventId);
+        if (ev) setSelectedEvent(ev);
+      }
+      if (routeFocusMoodId) {
+        setFocusMoodId(routeFocusMoodId);
+        const m = moodEntries.find((mo) => mo.id === routeFocusMoodId);
+        if (m) setSelectedMood(m);
+      }
+      navigation.setParams({ focusDate: undefined, focusEventId: undefined, focusMoodId: undefined });
     }
-  }, [routeFocusDate, routeFocusEventId, dates, events, navigation]);
+  }, [routeFocusDate, routeFocusEventId, routeFocusMoodId, dates, events, moodEntries, navigation]);
 
   const handleEventPress = useCallback((event) => {
     setSelectedEvent(event);
+    setSelectedMood(null);
+  }, []);
+
+  const handleMoodPress = useCallback((mood) => {
+    setSelectedMood(mood);
+    setSelectedEvent(null);
   }, []);
 
   const handleCloseSheet = useCallback(() => {
     setSelectedEvent(null);
+    setSelectedMood(null);
   }, []);
 
   const handleFocusedEventScrolled = useCallback(() => {
     setFocusEventId(null);
+    setFocusDate(null);
+  }, []);
+
+  const handleFocusedMoodScrolled = useCallback(() => {
+    setFocusMoodId(null);
     setFocusDate(null);
   }, []);
 
@@ -99,26 +127,49 @@ export default function CalendarScreen() {
       return (
         <View style={[styles.dayPage, { width: Dimensions.get('window').width }]}>
           <View style={styles.dayHeader}>
-            <Text style={styles.dayName}>{dayName}</Text>
-            <Text style={[styles.dayNum, isToday && styles.dayNumToday]}>{dayNum}</Text>
-            <Text style={styles.monthYear}>
-              {d.toLocaleString('default', { month: 'long' })} {d.getFullYear()}
-            </Text>
+            <View>
+              <Text style={styles.dayName}>{dayName}</Text>
+              <Text style={[styles.dayNum, isToday && styles.dayNumToday]}>{dayNum}</Text>
+              <Text style={styles.monthYear}>
+                {d.toLocaleString('default', { month: 'long' })} {d.getFullYear()}
+              </Text>
+            </View>
+            {isMoodMode ? (
+              <TouchableOpacity
+                onPress={() => navigation.setParams({ mode: 'events' })}
+                style={styles.modeLabel}
+              >
+                <Text style={styles.modeLabelText}>← Events</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                onPress={() => navigation.setParams({ mode: 'mood' })}
+                style={styles.modeLabel}
+              >
+                <Text style={styles.modeLabelText}>Mood</Text>
+              </TouchableOpacity>
+            )}
           </View>
           <DayView
             date={date}
             events={events}
+            moodEntries={moodEntries}
+            mode={mode}
             onEventPress={handleEventPress}
-            focusedEventId={date === focusDate ? focusEventId : null}
+            onMoodPress={handleMoodPress}
+            focusedEventId={!isMoodMode && date === focusDate ? focusEventId : null}
+            focusedMoodId={isMoodMode && date === focusDate ? focusMoodId : null}
             onFocusedEventScrolled={handleFocusedEventScrolled}
+            onFocusedMoodScrolled={handleFocusedMoodScrolled}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
             onEventMovedToDay={handleEventMovedToDay}
+            onMoodMovedToDay={handleEventMovedToDay}
           />
         </View>
       );
     },
-    [events, handleEventPress, focusDate, focusEventId, handleFocusedEventScrolled, handleDragStart, handleDragEnd, handleEventMovedToDay]
+    [events, moodEntries, mode, isMoodMode, handleEventPress, handleMoodPress, focusDate, focusEventId, focusMoodId, handleFocusedEventScrolled, handleFocusedMoodScrolled, handleDragStart, handleDragEnd, handleEventMovedToDay]
   );
 
   const getItemLayout = useCallback(
@@ -157,6 +208,12 @@ export default function CalendarScreen() {
           onClose={handleCloseSheet}
         />
       )}
+      {selectedMood && (
+        <MoodEditSheet
+          mood={selectedMood}
+          onClose={handleCloseSheet}
+        />
+      )}
     </View>
   );
 }
@@ -182,6 +239,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
   },
   dayHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     paddingVertical: spacing.sm,
   },
   dayName: {
@@ -199,5 +259,12 @@ const styles = StyleSheet.create({
   monthYear: {
     fontSize: typography.footnote.fontSize,
     color: colors.textTertiary,
+  },
+  modeLabel: {
+    marginTop: 4,
+  },
+  modeLabelText: {
+    fontSize: typography.caption1.fontSize,
+    color: colors.accent,
   },
 });

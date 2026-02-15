@@ -32,7 +32,12 @@ export default function InsightsScreen() {
   const dates = getLast7Days();
   const recentEvents = state.events.filter((e) => dates.includes(e.date));
   const recentJournal = state.journal.filter((j) => dates.includes(j.date));
-  const moods = dates.map((date) => ({ date, ...state.mood[date] })).filter((m) => m.emotion || m.intensity);
+  const moods = dates.map((date) => {
+    const entries = state.moodEntries.filter((m) => m.date === date);
+    if (entries.length === 0) return null;
+    const latest = entries.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))[0];
+    return { date, emotion: latest.emotion, intensity: latest.intensity };
+  }).filter((m) => m && (m.emotion || m.intensity));
 
   const [aiInsights, setAiInsights] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);

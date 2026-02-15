@@ -1,11 +1,13 @@
-import React, { createContext, useContext, useReducer } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useRef } from 'react';
 import {
   initialMockEvents,
   initialMockJournal,
   getInitialMockSummaries,
-  getInitialMockMood,
+  getInitialMockMoodEntries,
   EVENT_TYPES,
 } from './mockData';
+import { isSupabaseConfigured } from '../api/supabase';
+import { loadFromSupabase, saveFullStateToSupabase } from '../api/supabaseSync';
 
 const StoreContext = createContext(null);
 
@@ -13,11 +15,23 @@ const initialState = {
   events: initialMockEvents,
   journal: initialMockJournal,
   summaries: getInitialMockSummaries(),
-  mood: getInitialMockMood(),
+  moodEntries: getInitialMockMoodEntries(),
+  loading: false,
 };
 
 function storeReducer(state, action) {
   switch (action.type) {
+    case 'HYDRATE':
+      return {
+        ...state,
+        events: action.payload.events ?? state.events,
+        journal: action.payload.journal ?? state.journal,
+        summaries: action.payload.summaries ?? state.summaries,
+        moodEntries: action.payload.moodEntries ?? state.moodEntries,
+        loading: false,
+      };
+    case 'SET_LOADING':
+      return { ...state, loading: action.payload };
     case 'ADD_EVENT':
       return { ...state, events: [action.payload, ...state.events] };
     case 'UPDATE_EVENT':
@@ -50,22 +64,81 @@ function storeReducer(state, action) {
         ],
       };
     case 'SET_SUMMARY':
+      if (state.summaries[action.payload.date]) return state;
       return {
         ...state,
-        summaries: { ...state.summaries, [action.payload.date]: action.payload.text },
+        summaries: {
+          ...state.summaries,
+          [action.payload.date]: {
+            text: action.payload.text,
+            createdAt: action.payload.createdAt ?? new Date().toISOString(),
+            updatedAt: action.payload.updatedAt ?? new Date().toISOString(),
+          },
+        },
       };
-    case 'SET_MOOD':
+    case 'ADD_MOOD':
       return {
         ...state,
-        mood: { ...state.mood, [action.payload.date]: action.payload },
+        moodEntries: [action.payload, ...state.moodEntries],
+      };
+    case 'UPDATE_MOOD':
+      return {
+        ...state,
+        moodEntries: state.moodEntries.map((m) =>
+          m.id === action.payload.id ? { ...m, ...action.payload } : m
+        ),
+      };
+    case 'DELETE_MOOD':
+      return {
+        ...state,
+        moodEntries: state.moodEntries.filter((m) => m.id !== action.payload.id),
       };
     default:
       return state;
   }
 }
 
+const SAVE_DEBOUNCE_MS = 1500;
+
 export function StoreProvider({ children }) {
   const [state, dispatch] = useReducer(storeReducer, initialState);
+  const saveTimeoutRef = useRef(null);
+  const isInitialMount = useRef(true);
+
+  // Load from Supabase on mount
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+    dispatch({ type: 'SET_LOADING', payload: true });
+    loadFromSupabase()
+      .then((data) => {
+        if (data) {
+          dispatch({ type: 'HYDRATE', payload: data });
+        } else {
+          dispatch({ type: 'SET_LOADING', payload: false });
+        }
+      })
+      .catch(() => dispatch({ type: 'SET_LOADING', payload: false }));
+  }, []);
+
+  // Debounced save to Supabase on state change (skip initial mount)
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    if (!isSupabaseConfigured()) return;
+
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      saveFullStateToSupabase(state);
+      saveTimeoutRef.current = null;
+    }, SAVE_DEBOUNCE_MS);
+
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, [state.events, state.journal, state.summaries, state.moodEntries]);
+
   return (
     <StoreContext.Provider value={{ state, dispatch }}>
       {children}
@@ -111,7 +184,17 @@ export function useLatestSummary(today) {
 
 export function useMood(date) {
   const { state } = useStore();
-  return state.mood[date] || null;
+  const entries = state.moodEntries.filter((m) => m.date === date);
+  if (entries.length === 0) return null;
+  const latest = entries.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))[0];
+  return { emotion: latest.emotion, intensity: latest.intensity };
+}
+
+export function useMoodHistory(date) {
+  const { state } = useStore();
+  return state.moodEntries
+    .filter((m) => m.date === date)
+    .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
 }
 
 export function useRecentMeds() {

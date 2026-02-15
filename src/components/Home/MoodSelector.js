@@ -1,7 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Modal,
+  StyleSheet,
+  Pressable,
+} from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import Slider from '@react-native-community/slider';
+import * as Haptics from 'expo-haptics';
 import { useStore, useMood } from '../../store/useStore';
-import { MOOD_OPTIONS } from '../../store/mockData';
+import { MOOD_OPTIONS, generateMoodId } from '../../store/mockData';
+import { addMinutesToTime } from '../../utils/time';
 import { colors, spacing, typography, borderRadius } from '../../theme/constants';
 
 function formatDateKey(d) {
@@ -11,12 +22,20 @@ function formatDateKey(d) {
   return `${y}-${m}-${day}`;
 }
 
-const INTENSITY_LEVELS = [1, 2, 3, 4, 5];
+function getMoodLabel(id) {
+  return MOOD_OPTIONS.find((m) => m.id === id)?.label ?? id;
+}
+
+function getMoodColor(id) {
+  return MOOD_OPTIONS.find((m) => m.id === id)?.color ?? colors.textSecondary;
+}
 
 export default function MoodSelector() {
   const today = formatDateKey(new Date());
   const saved = useMood(today);
   const { dispatch } = useStore();
+  const navigation = useNavigation();
+  const [modalVisible, setModalVisible] = useState(false);
   const [emotion, setEmotion] = useState(saved?.emotion ?? 'neutral');
   const [intensity, setIntensity] = useState(saved?.intensity ?? 3);
 
@@ -25,48 +44,152 @@ export default function MoodSelector() {
     setIntensity(saved?.intensity ?? 3);
   }, [saved?.emotion, saved?.intensity]);
 
+  useEffect(() => {
+    if (modalVisible) {
+      setEmotion(saved?.emotion ?? 'neutral');
+      setIntensity(saved?.intensity ?? 3);
+    }
+  }, [modalVisible, saved?.emotion, saved?.intensity]);
+
   const handleSave = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const now = new Date();
+    const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const startTime = time;
+    const endTime = addMinutesToTime(time, 30);
     dispatch({
-      type: 'SET_MOOD',
-      payload: { date: today, emotion, intensity },
+      type: 'ADD_MOOD',
+      payload: {
+        id: generateMoodId(),
+        date: today,
+        time,
+        startTime,
+        endTime,
+        emotion,
+        intensity: Math.round(intensity),
+        createdAt: now.toISOString(),
+      },
     });
+    setModalVisible(false);
   };
+
+  const handleClose = () => {
+    setModalVisible(false);
+  };
+
+  const currentLabel = saved ? getMoodLabel(saved.emotion) : null;
 
   return (
     <View style={styles.container}>
-      <Text style={styles.label}>Current <Text style={styles.labelHighlight}>Mood</Text></Text>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.row}
-      >
-        {MOOD_OPTIONS.map((m) => (
+      <View style={styles.displayRow}>
+        <Text style={styles.label}>
+          Your current mood is{' '}
+          <Text style={[styles.moodValue, { color: saved ? getMoodColor(saved.emotion) : colors.textSecondary }]}>
+            {currentLabel ?? 'not set'}
+          </Text>
+        </Text>
+        <View style={styles.buttonRow}>
           <TouchableOpacity
-            key={m.id}
-            onPress={() => setEmotion(m.id)}
-            style={[styles.chip, emotion === m.id && styles.chipActive]}
+            style={styles.editHistoryButton}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              navigation.navigate('CalendarTab', {
+                screen: 'Calendar',
+                params: { mode: 'mood', focusDate: today },
+              });
+            }}
+            activeOpacity={0.8}
           >
-            <Text style={[styles.chipLabel, emotion === m.id && styles.chipLabelActive]}>
-              {m.label}
-            </Text>
+            <Text style={styles.editHistoryText}>Edit history</Text>
           </TouchableOpacity>
-        ))}
-      </ScrollView>
-      <View style={styles.intensityRow}>
-        <View style={styles.intensitySlider}>
-          <Text style={styles.intensityLabel}>Intensity</Text>
-          {INTENSITY_LEVELS.map((i) => (
-            <TouchableOpacity
-              key={i}
-              onPress={() => setIntensity(i)}
-              style={[styles.intensityDot, intensity === i && styles.intensityDotActive]}
-            />
-          ))}
+          <TouchableOpacity
+            style={styles.updateButton}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setModalVisible(true);
+            }}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.updateButtonText}>Update</Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-          <Text style={styles.saveButtonText}>Save mood</Text>
-        </TouchableOpacity>
       </View>
+
+      <Modal
+        visible={modalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={handleClose}
+      >
+        <Pressable style={styles.modalOverlay} onPress={handleClose}>
+          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.modalTitle}>How are you feeling?</Text>
+
+            <View style={styles.moodGrid}>
+              {MOOD_OPTIONS.map((m) => (
+                <TouchableOpacity
+                  key={m.id}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setEmotion(m.id);
+                  }}
+                  style={[
+                    styles.moodChip,
+                    { backgroundColor: m.color + '30', borderColor: m.color },
+                    emotion === m.id && styles.moodChipActive,
+                    emotion === m.id && { borderWidth: 2, backgroundColor: m.color + '50' },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.moodChipLabel,
+                      { color: m.color },
+                      emotion === m.id && styles.moodChipLabelActive,
+                    ]}
+                  >
+                    {m.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={styles.sliderSection}>
+              <Text style={styles.sliderLabel}>
+                Intensity: <Text style={styles.sliderValue}>{Math.round(intensity)}</Text>
+              </Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={1}
+                maximumValue={5}
+                step={1}
+                value={intensity}
+                onValueChange={(v) => setIntensity(v)}
+                onSlidingComplete={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+                minimumTrackTintColor={getMoodColor(emotion)}
+                maximumTrackTintColor={colors.border}
+                thumbTintColor={getMoodColor(emotion)}
+              />
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.closeButton]}
+                onPress={handleClose}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.closeButtonText}>Close</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.saveButton]}
+                onPress={handleSave}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.saveButtonText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -76,71 +199,127 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.md,
     marginBottom: spacing.md,
   },
+  displayRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    alignItems: 'center',
+  },
+  editHistoryButton: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+  },
+  editHistoryText: {
+    fontSize: typography.footnote.fontSize,
+    color: colors.textTertiary,
+  },
   label: {
+    fontSize: typography.body.fontSize,
+    color: colors.textSecondary,
+    flex: 1,
+  },
+  moodValue: {
+    fontWeight: '600',
+  },
+  updateButton: {
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  updateButtonText: {
+    fontSize: typography.subhead.fontSize,
+    fontWeight: '600',
+    color: colors.accent,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.lg,
+  },
+  modalContent: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    width: '100%',
+    maxWidth: 360,
+  },
+  modalTitle: {
+    fontSize: typography.title3.fontSize,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: spacing.lg,
+  },
+  moodGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  moodChip: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+  },
+  moodChipActive: {
+    borderWidth: 2,
+  },
+  moodChipLabel: {
+    fontSize: typography.footnote.fontSize,
+    fontWeight: '500',
+  },
+  moodChipLabelActive: {
+    fontWeight: '700',
+  },
+  sliderSection: {
+    marginBottom: spacing.lg,
+  },
+  sliderLabel: {
     fontSize: typography.footnote.fontSize,
     color: colors.textSecondary,
     marginBottom: spacing.xs,
   },
-  labelHighlight: {
+  sliderValue: {
     color: colors.accent,
     fontWeight: '600',
   },
-  row: {
-    flexDirection: 'row',
-    gap: spacing.xs,
-    marginBottom: spacing.sm,
+  slider: {
+    width: '100%',
+    height: 40,
   },
-  chip: {
+  modalButtons: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.full,
+    gap: spacing.sm,
+    justifyContent: 'flex-end',
+  },
+  modalButton: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+  },
+  closeButton: {
+    backgroundColor: colors.backgroundSecondary,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  chipActive: {
-    borderColor: colors.accent,
-    backgroundColor: colors.surfaceElevated,
-  },
-  chipLabel: {
-    fontSize: typography.footnote.fontSize,
+  closeButtonText: {
+    fontSize: typography.subhead.fontSize,
+    fontWeight: '600',
     color: colors.textSecondary,
-  },
-  chipLabelActive: {
-    color: colors.accent,
-  },
-  intensityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.md,
-  },
-  intensitySlider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  intensityLabel: {
-    fontSize: typography.footnote.fontSize,
-    color: colors.textTertiary,
-    marginRight: spacing.xs,
-  },
-  intensityDot: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: colors.border,
-  },
-  intensityDotActive: {
-    backgroundColor: colors.accent,
   },
   saveButton: {
     backgroundColor: colors.accent,
-    borderRadius: borderRadius.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
   },
   saveButtonText: {
     fontSize: typography.subhead.fontSize,

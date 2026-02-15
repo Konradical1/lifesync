@@ -1,6 +1,7 @@
 import React, { useCallback, useState, useRef, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import DraggableEventBlock from './DraggableEventBlock';
+import DraggableMoodBlock from './DraggableMoodBlock';
 import { useStore } from '../../store/useStore';
 import { EVENT_TYPES } from '../../store/mockData';
 import {
@@ -8,12 +9,22 @@ import {
   getEventStartAndDuration,
   getEventEndMinutes,
   getSleepSegmentForDay,
+  getMoodStartAndEnd,
 } from '../../utils/time';
 import { colors, spacing, typography } from '../../theme/constants';
 
 const HOUR_HEIGHT = 72;
 const MIN_EVENT_HEIGHT = 44;
 const THIN_EVENT_THRESHOLD = 56;
+
+function getTodayString() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function getMinutesFromMidnight(now) {
+  return now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+}
 
 function formatHourLabel(h) {
   const time24 = `${String(h % 24).padStart(2, '0')}:00`;
@@ -25,6 +36,24 @@ function getEventLayout(event) {
   const top = (startMinutes / 60) * HOUR_HEIGHT;
   const height = Math.max((durationMinutes / 60) * HOUR_HEIGHT, MIN_EVENT_HEIGHT);
   return { top, height, startMinutes, endMinutes: startMinutes + durationMinutes };
+}
+
+/**
+ * Get mood display items for a day.
+ */
+function getMoodDisplayItemsForDay(moodEntries, date) {
+  const HOUR_HEIGHT = 72;
+  const MIN_HEIGHT = 44;
+  const items = moodEntries
+    .filter((m) => m.date === date)
+    .map((mood) => {
+      const { startMinutes, endMinutes } = getMoodStartAndEnd(mood);
+      const top = (startMinutes / 60) * HOUR_HEIGHT;
+      const durationMinutes = endMinutes - startMinutes;
+      const height = Math.max((durationMinutes / 60) * HOUR_HEIGHT, MIN_HEIGHT);
+      return { mood, top, height, startMinutes, endMinutes };
+    });
+  return items.sort((a, b) => a.startMinutes - b.startMinutes);
 }
 
 /**
@@ -100,16 +129,34 @@ function computeOverlapColumns(items) {
 export default function DayView({
   date,
   events,
+  moodEntries,
+  mode = 'events',
   onEventPress,
+  onMoodPress,
   focusedEventId,
+  focusedMoodId,
   onFocusedEventScrolled,
+  onFocusedMoodScrolled,
   onDragStart,
   onDragEnd,
   onEventMovedToDay,
+  onMoodMovedToDay,
 }) {
   const { dispatch } = useStore();
   const [isDragging, setIsDragging] = useState(false);
+  const [nowTick, setNowTick] = useState(0);
   const scrollRef = useRef(null);
+
+  const isToday = date === getTodayString();
+  const nowLineTop = isToday
+    ? (getMinutesFromMidnight(new Date()) / 60) * HOUR_HEIGHT + 6
+    : null;
+
+  useEffect(() => {
+    if (!isToday) return;
+    const id = setInterval(() => setNowTick((t) => t + 1), 60 * 1000);
+    return () => clearInterval(id);
+  }, [isToday]);
 
   const handleDragStart = useCallback(() => {
     setIsDragging(true);
@@ -121,22 +168,49 @@ export default function DayView({
     onDragEnd?.();
   }, [onDragEnd]);
 
+  const isMoodMode = mode === 'mood';
+  const displayItems = isMoodMode
+    ? getMoodDisplayItemsForDay(moodEntries ?? [], date)
+    : getDisplayItemsForDay(events ?? [], date);
+
+  const focusedId = isMoodMode ? focusedMoodId : focusedEventId;
+
   useEffect(() => {
-    if (!focusedEventId) return;
-    const item = getDisplayItemsForDay(events, date).find((it) => it.event.id === focusedEventId);
+    if (!focusedId) return;
+    const item = displayItems.find((it) =>
+      isMoodMode ? it.mood?.id === focusedId : it.event?.id === focusedId
+    );
     if (!item) return;
     const { top } = item;
     const offsetY = Math.max(0, top - 80);
     const id = setTimeout(() => {
       scrollRef.current?.scrollTo({ y: offsetY, animated: true });
       onFocusedEventScrolled?.();
+      onFocusedMoodScrolled?.();
     }, 100);
     return () => clearTimeout(id);
-  }, [focusedEventId, date, events, onFocusedEventScrolled]);
+  }, [focusedId, date, displayItems, isMoodMode, onFocusedEventScrolled, onFocusedMoodScrolled]);
+
+  // When opening day view for today with no focused item, scroll to current time
+  useEffect(() => {
+    if (!isToday || focusedId || nowLineTop == null) return;
+    const offsetY = Math.max(0, nowLineTop - 80);
+    const id = setTimeout(() => {
+      scrollRef.current?.scrollTo({ y: offsetY, animated: true });
+    }, 150);
+    return () => clearTimeout(id);
+  }, [date, isToday, focusedId, nowLineTop]);
 
   const handleTimeChange = useCallback(
     (updatedEvent) => {
       dispatch({ type: 'UPDATE_EVENT', payload: updatedEvent });
+    },
+    [dispatch]
+  );
+
+  const handleMoodChange = useCallback(
+    (updatedMood) => {
+      dispatch({ type: 'UPDATE_MOOD', payload: updatedMood });
     },
     [dispatch]
   );
@@ -148,10 +222,18 @@ export default function DayView({
     [onEventMovedToDay]
   );
 
-  const displayItems = getDisplayItemsForDay(events, date);
+  const handleMoodMovedToDay = useCallback(
+    (newDate) => {
+      onMoodMovedToDay?.(newDate);
+    },
+    [onMoodMovedToDay]
+  );
 
-  const overlapMap = computeOverlapColumns(displayItems);
-  const maxEndMinutes = displayItems.reduce((max, it) => Math.max(max, it.endMinutes), 24 * 60);
+  const overlapMap = isMoodMode ? {} : computeOverlapColumns(displayItems);
+  const maxEndMinutes = displayItems.reduce(
+    (max, it) => Math.max(max, it.endMinutes ?? 0),
+    24 * 60
+  );
 
   const gridHeight = Math.max(24 * HOUR_HEIGHT, (maxEndMinutes / 60) * HOUR_HEIGHT);
   const hourCount = Math.ceil(maxEndMinutes / 60);
@@ -181,31 +263,55 @@ export default function DayView({
             />
           ))}
         </View>
-        {displayItems.map((item, idx) => {
-          const { event, top, height } = item;
-          const key = item.isSleepSegment && item.endMinutes < 480
-            ? `${event.id}-am` : event.id;
-          const { columnIndex, totalColumns } = overlapMap[event.id] ?? {
-            columnIndex: 0,
-            totalColumns: 1,
-          };
-          return (
-            <DraggableEventBlock
-              key={key}
-              event={event}
-              top={top}
-              height={height}
-              columnIndex={columnIndex}
-              totalColumns={totalColumns}
-              onPress={onEventPress}
-              onTimeChange={handleTimeChange}
-              onDragStart={handleDragStart}
-              onDragEnd={handleDragEnd}
-              viewDate={date}
-              onEventMovedToDay={handleEventMovedToDay}
-            />
-          );
-        })}
+        {isMoodMode
+          ? displayItems.map((item) => {
+              const { mood, top, height } = item;
+              return (
+                <DraggableMoodBlock
+                  key={mood.id}
+                  mood={mood}
+                  top={top}
+                  height={height}
+                  onPress={onMoodPress}
+                  onMoodChange={handleMoodChange}
+                  onDragStart={handleDragStart}
+                  onDragEnd={handleDragEnd}
+                  viewDate={date}
+                  onMoodMovedToDay={handleMoodMovedToDay}
+                />
+              );
+            })
+          : displayItems.map((item) => {
+              const { event, top, height } = item;
+              const key = item.isSleepSegment && item.endMinutes < 480
+                ? `${event.id}-am` : event.id;
+              const { columnIndex, totalColumns } = overlapMap[event.id] ?? {
+                columnIndex: 0,
+                totalColumns: 1,
+              };
+              return (
+                <DraggableEventBlock
+                  key={key}
+                  event={event}
+                  top={top}
+                  height={height}
+                  columnIndex={columnIndex}
+                  totalColumns={totalColumns}
+                  onPress={onEventPress}
+                  onTimeChange={handleTimeChange}
+                  onDragStart={handleDragStart}
+                  onDragEnd={handleDragEnd}
+                  viewDate={date}
+                  onEventMovedToDay={handleEventMovedToDay}
+                />
+              );
+            })}
+        {isToday && nowLineTop != null && (
+          <View
+            style={[styles.nowLine, { top: nowLineTop }]}
+            pointerEvents="none"
+          />
+        )}
       </View>
     </ScrollView>
   );
@@ -254,5 +360,13 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: 'rgba(110, 118, 129, 0.25)',
     marginTop: 6,
+  },
+  nowLine: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 2,
+    backgroundColor: '#E53935',
+    zIndex: 10,
   },
 });

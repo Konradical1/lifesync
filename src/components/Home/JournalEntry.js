@@ -10,26 +10,29 @@ import {
   Animated,
   Dimensions,
 } from 'react-native';
-import { useJournal, useStore } from '../../store/useStore';
+import { useNavigation } from '@react-navigation/native';
+import { useStore } from '../../store/useStore';
+import { getTimeNow24h } from '../../utils/time';
 import { colors, spacing, typography, borderRadius } from '../../theme/constants';
 
 const FADE_DURATION = 120;
 const KEYBOARD_CLOSE_DELAY = 80;
 const KEYBOARD_MARGIN = 12;
-const PANEL_HEIGHT_RATIO = 0.72; // taller when keyboard closed
+const PANEL_HEIGHT_RATIO = 0.72;
 
 function getTodayKey() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function JournalEditor({ date, initialText, onClose }) {
+export function JournalEditor({ date, initialText, onClose, entryId = null }) {
   const [value, setValue] = useState(initialText);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const opacity = useRef(new Animated.Value(0)).current;
   const { dispatch } = useStore();
   const windowHeight = Dimensions.get('window').height;
   const topOffset = windowHeight * 0.08;
+  const isEdit = entryId != null;
 
   useEffect(() => {
     Animated.timing(opacity, {
@@ -55,18 +58,22 @@ function JournalEditor({ date, initialText, onClose }) {
   const performClose = () => {
     const t = value.trim();
     if (t) {
-      dispatch({
-        type: 'REPLACE_JOURNAL_FOR_DAY',
-        payload: {
-          date,
-          entry: {
+      if (isEdit) {
+        dispatch({
+          type: 'UPDATE_JOURNAL_ENTRY',
+          payload: { id: entryId, text: t },
+        });
+      } else {
+        dispatch({
+          type: 'ADD_JOURNAL_ENTRY',
+          payload: {
             id: 'j_' + Date.now(),
             date,
-            time: new Date().toTimeString().slice(0, 5),
+            time: getTimeNow24h(),
             text: t,
           },
-        },
-      });
+        });
+      }
     }
     Keyboard.dismiss();
     setTimeout(() => {
@@ -90,7 +97,7 @@ function JournalEditor({ date, initialText, onClose }) {
         <View style={editorStyles.panelWrap}>
           <View style={[editorStyles.panel, { height: panelHeight }]} pointerEvents="box-none">
             <View style={editorStyles.header}>
-              <Text style={editorStyles.title}>Add journal entry</Text>
+              <Text style={editorStyles.title}>{isEdit ? 'Edit entry' : 'Add journal entry'}</Text>
               <TouchableOpacity onPress={performClose}>
                 <Text style={editorStyles.close}>Close</Text>
               </TouchableOpacity>
@@ -102,8 +109,7 @@ function JournalEditor({ date, initialText, onClose }) {
               value={value}
               onChangeText={setValue}
               multiline
-              autoFocus
-              onBlur={performClose}
+              autoFocus={!isEdit}
             />
           </View>
         </View>
@@ -114,30 +120,31 @@ function JournalEditor({ date, initialText, onClose }) {
 
 export default function JournalEntry() {
   const today = getTodayKey();
-  const entries = useJournal(today);
   const [showEditor, setShowEditor] = useState(false);
-
-  const text = entries.length > 0 ? entries[0].text : '';
+  const navigation = useNavigation();
 
   return (
     <View style={styles.wrap}>
-      <Text style={styles.label}>Add journal entry</Text>
+      <View style={styles.labelRow}>
+        <Text style={styles.label}>Journal</Text>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('JournalHistory')}
+          style={styles.historyButton}
+        >
+          <Text style={styles.historyButtonText}>Journal history</Text>
+        </TouchableOpacity>
+      </View>
       <TouchableOpacity
         style={styles.card}
         onPress={() => setShowEditor(true)}
         activeOpacity={0.8}
       >
-        <Text
-          style={text ? styles.preview : styles.placeholder}
-          numberOfLines={text ? 2 : 1}
-        >
-          {text || 'Start writing…'}
-        </Text>
+        <Text style={styles.placeholder}>Start writing…</Text>
       </TouchableOpacity>
       {showEditor && (
         <JournalEditor
           date={today}
-          initialText={text}
+          initialText=""
           onClose={() => setShowEditor(false)}
         />
       )}
@@ -150,10 +157,23 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.md,
     marginBottom: spacing.md,
   },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs,
+  },
   label: {
     fontSize: typography.footnote.fontSize,
     color: colors.textSecondary,
-    marginBottom: spacing.xs,
+  },
+  historyButton: {
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+  },
+  historyButtonText: {
+    fontSize: typography.footnote.fontSize,
+    color: colors.accent,
   },
   card: {
     backgroundColor: colors.surface,
@@ -165,10 +185,6 @@ const styles = StyleSheet.create({
   placeholder: {
     fontSize: typography.body.fontSize,
     color: colors.textTertiary,
-  },
-  preview: {
-    fontSize: typography.body.fontSize,
-    color: colors.textPrimary,
   },
 });
 

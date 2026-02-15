@@ -104,6 +104,15 @@ export function parseTimeToMinutes(time24) {
 }
 
 /**
+ * Add minutes to a 24h time string. Wraps at 24h.
+ */
+export function addMinutesToTime(time24, minutesToAdd) {
+  const mins = parseTimeToMinutes(time24) + minutesToAdd;
+  const wrapped = ((mins % (24 * 60)) + (24 * 60)) % (24 * 60);
+  return minutesToTime24(wrapped);
+}
+
+/**
  * Get event end time in minutes (start + duration).
  */
 export function getEventEndMinutes(event) {
@@ -158,4 +167,21 @@ export function getEventStartAndDuration(event) {
 
   const start = parseTimeToMinutes(event.time ?? event.startTime ?? '00:00');
   return { startMinutes: start, durationMinutes: DEFAULT_DURATION };
+}
+
+/**
+ * Get mood entry start and end minutes. Uses startTime/endTime if present,
+ * else derives from time (time = start, end = start + 30 min).
+ */
+export function getMoodStartAndEnd(mood) {
+  const startTime = mood.startTime ?? mood.time ?? '00:00';
+  const startMinutes = parseTimeToMinutes(startTime);
+  let endMinutes;
+  if (mood.endTime) {
+    endMinutes = parseTimeToMinutes(mood.endTime);
+    if (endMinutes <= startMinutes) endMinutes += MINS_PER_DAY;
+  } else {
+    endMinutes = startMinutes + 30;
+  }
+  return { startMinutes, endMinutes };
 }

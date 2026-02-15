@@ -17,7 +17,12 @@ function formatDateKey(d) {
 
 export default function AISummaryCard() {
   const today = formatDateKey(new Date());
-  const storedSummary = useSummary(today) ?? useLatestSummary(today);
+  const summaryToday = useSummary(today);
+  const latestSummary = useLatestSummary(today);
+  const storedEntry = summaryToday ?? latestSummary;
+  const summary = storedEntry && typeof storedEntry === 'object' && storedEntry.text
+    ? storedEntry.text
+    : (storedEntry || null);
   const events = useEvents(today);
   const journal = useJournal(today);
   const mood = useMood(today);
@@ -28,6 +33,7 @@ export default function AISummaryCard() {
 
   useEffect(() => {
     if (fetchedRef.current) return;
+    if (summaryToday?.text) return;
     const hasData = events.length > 0 || journal.length > 0 || (mood && (mood.emotion || mood.intensity));
     if (!hasData) return;
     fetchedRef.current = true;
@@ -44,11 +50,10 @@ export default function AISummaryCard() {
         }
       })
       .finally(() => setLoading(false));
-    // Run once when we have data for today
+    // Run once when we have data for today and no summary yet
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const summary = storedSummary;
   const handlePress = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setExpanded((e) => !e);

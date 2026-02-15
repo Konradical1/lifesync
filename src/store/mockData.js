@@ -119,25 +119,45 @@ export const initialMockJournal = [
 ];
 
 export function getInitialMockSummaries() {
+  const ts = new Date().toISOString();
   return {
-    [today()]: 'You had a balanced day: good sleep, a healthy breakfast, a morning run, and took your supplements. Feeling on track.',
-    [yesterday()]: 'Yesterday you focused on recovery with yoga and a light salad. Rest day well spent.',
+    [today()]: { text: 'You had a balanced day: good sleep, a healthy breakfast, a morning run, and took your supplements. Feeling on track.', createdAt: ts, updatedAt: ts },
+    [yesterday()]: { text: 'Yesterday you focused on recovery with yoga and a light salad. Rest day well spent.', createdAt: ts, updatedAt: ts },
   };
 }
 
-export function getInitialMockMood() {
-  return {
-    [today()]: { emotion: 'calm', intensity: 3 },
-    [yesterday()]: { emotion: 'energized', intensity: 4 },
-  };
+export function generateMoodId() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return c === 'x' ? r.toString(16) : ((r & 0x3) | 0x8).toString(16);
+  });
+}
+
+function simpleId() {
+  return generateMoodId();
+}
+
+function nowTime() {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+export function getInitialMockMoodEntries() {
+  const ts = new Date().toISOString();
+  return [
+    { id: simpleId(), date: today(), time: nowTime(), startTime: '09:00', endTime: '09:30', emotion: 'calm', intensity: 3, createdAt: ts },
+    { id: simpleId(), date: yesterday(), time: '18:00', startTime: '18:00', endTime: '18:30', emotion: 'energized', intensity: 4, createdAt: ts },
+  ];
 }
 
 export const MOOD_OPTIONS = [
-  { id: 'calm', label: 'Calm' },
-  { id: 'energized', label: 'Energized' },
-  { id: 'tired', label: 'Tired' },
-  { id: 'happy', label: 'Happy' },
-  { id: 'focused', label: 'Focused' },
-  { id: 'anxious', label: 'Anxious' },
-  { id: 'neutral', label: 'Neutral' },
+  { id: 'calm', label: 'Calm', color: '#60A5FA' },
+  { id: 'energized', label: 'Energized', color: '#FBBF24' },
+  { id: 'tired', label: 'Tired', color: '#94A3B8' },
+  { id: 'happy', label: 'Happy', color: '#34D399' },
+  { id: 'focused', label: 'Focused', color: '#6366F1' },
+  { id: 'anxious', label: 'Anxious', color: '#F87171' },
+  { id: 'neutral', label: 'Neutral', color: '#9CA3AF' },
+  { id: 'angry', label: 'Angry', color: '#EF4444' },
+  { id: 'sad', label: 'Sad', color: '#64748B' },
 ];

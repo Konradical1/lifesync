@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform, ActivityIndicator, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -7,6 +7,11 @@ import { useStore } from '../../store/useStore';
 import { EVENT_TYPES } from '../../store/mockData';
 import { formatTime12h } from '../../utils/time';
 import { colors, spacing, typography, borderRadius } from '../../theme/constants';
+import {
+  isAppleHealthSleepAvailable,
+  requestSleepPermissionAsync,
+  fetchSleepSamplesAsync,
+} from '../../api/appleHealth';
 
 function formatDateKey(d) {
   const y = d.getFullYear();
@@ -43,9 +48,51 @@ export default function SleepEventScreen() {
   const [endTime, setEndTime] = useState(() => getEnd());
   const [showStart, setShowStart] = useState(false);
   const [showEnd, setShowEnd] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
+
+  const handleImportFromAppleHealth = async () => {
+    if (!isAppleHealthSleepAvailable()) {
+      Alert.alert(
+        'Not available',
+        'Apple Health sleep import is only available on iOS in a development build with react-native-health installed. See APPLE_HEALTH_SLEEP.md.'
+      );
+      return;
+    }
+    setImportLoading(true);
+    try {
+      const granted = await requestSleepPermissionAsync();
+      if (!granted) {
+        Alert.alert(
+          'Access needed',
+          'Allow JournalX2 to read sleep data in Settings → Health → Data Access.'
+        );
+        setImportLoading(false);
+        return;
+      }
+      const end = new Date();
+      const start = new Date();
+      start.setDate(start.getDate() - 7);
+      const nights = await fetchSleepSamplesAsync(start, end);
+      if (!nights.length) {
+        Alert.alert('No data', 'No sleep data found in Apple Health for the last 7 days.');
+        setImportLoading(false);
+        return;
+      }
+      const latest = nights[0];
+      const startD = new Date(`${latest.date}T${latest.startTime}:00`);
+      let endD = new Date(`${latest.date}T${latest.endTime}:00`);
+      if (endD <= startD) endD.setDate(endD.getDate() + 1);
+      setStartTime(startD);
+      setEndTime(endD);
+    } catch (e) {
+      Alert.alert('Import failed', e?.message || 'Could not read sleep data.');
+    } finally {
+      setImportLoading(false);
+    }
+  };
 
   const handleSave = () => {
-    const date = formatDateKey(new Date());
+    const date = formatDateKey(startTime);
     dispatch({
       type: 'ADD_EVENT',
       payload: {
@@ -105,6 +152,19 @@ export default function SleepEventScreen() {
             }}
           />
         )}
+        {isAppleHealthSleepAvailable() && (
+          <TouchableOpacity
+            style={styles.importButton}
+            onPress={handleImportFromAppleHealth}
+            disabled={importLoading}
+          >
+            {importLoading ? (
+              <ActivityIndicator size="small" color={colors.accent} />
+            ) : (
+              <Text style={styles.importButtonText}>Import from Apple Health</Text>
+            )}
+          </TouchableOpacity>
+        )}
         <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
           <Text style={styles.saveButtonText}>Save</Text>
         </TouchableOpacity>
@@ -152,6 +212,20 @@ const styles = StyleSheet.create({
   timeText: {
     fontSize: typography.title2.fontSize,
     color: colors.textPrimary,
+  },
+  importButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    marginTop: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+  },
+  importButtonText: {
+    fontSize: typography.body.fontSize,
+    color: colors.accent,
   },
   saveButton: {
     backgroundColor: colors.accent,
