@@ -1,6 +1,7 @@
 /**
  * Vercel serverless API: AI insights from events, journal, and moods.
- * When you change this file (or any file under api/), push to git to deploy and update Vercel.
+ *
+ * DEPLOY: After editing this file (or any file under api/), push to git so Vercel updates the API.
  */
 import type { VercelRequest, VercelResponse } from "vercel";
 
@@ -45,10 +46,10 @@ Structure your response so the app can show a big heading, section headings, and
 5) EMPHASIS (three levels)
    - *italic* for occasional emphasis or tone (one asterisk each side). Example: "That's *really* helpful."
    - **bold** for somewhat important things (two asterisks each side). Example: "Your **sleep** was **consistent**."
-   - ***blue*** for super important only—key numbers and the most important terms (three asterisks each side). The app will color these blue. Use sparingly. Example: "On **Monday** you logged ***3*** ***workouts***."
+   - ***blue***: Use for exactly ONE term per section only. Each ## section (e.g. Sleep, Nutrition, Activity, Mood) must have at most one ***blue*** phrase—pick the single most important number or takeaway for that section. The app colors these blue. Do not use ***blue*** multiple times in the same section. Example: In a Sleep section you might write "You got ***7 hours*** on **Tuesday**." (only "7 hours" in blue). In Nutrition, one blue term only, e.g. "***3*** meals logged."
 
-Example: "Your **nutrition** looks ***balanced***—***2*** meals logged and *plenty* of variety."
-Example: "## [icon:sleep] Sleep — You got ***6.5 hours*** on **Tuesday**. **Consistency** is improving."
+Example: "## [icon:sleep] Sleep — You got ***6.5 hours*** on **Tuesday**. **Consistency** is improving." (one blue term in that section)
+Example: "## [icon:nutrition] Nutrition — Your **meals** looked ***balanced*** with good variety." (one blue term)
 
 Use short paragraphs or bullets. Be specific, encouraging, and actionable. Never judgmental.`;
 
@@ -114,7 +115,7 @@ ${journalText}
 Moods:
 ${moodsText}
 
-Write 3–5 insights. Use day-of-week when referring to dates (e.g. "Monday" or "Today"). Format: # Big heading, then ## [icon:name] Section. Use *italic*, **bold**, ***blue*** sparingly. Keep formatting clean.`;
+Write 3–5 insights. Use day-of-week when referring to dates (e.g. "Monday" or "Today"). Format: # Big heading, then ## [icon:name] Section. Use ***blue*** for only one term per section (e.g. one in Sleep, one in Nutrition). Use *italic* and **bold** freely. Keep formatting clean.`;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
