@@ -1,3 +1,4 @@
+/** When you change this file (or any under api/), push to git to deploy and update Vercel. */
 import type { VercelRequest, VercelResponse } from "vercel";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";

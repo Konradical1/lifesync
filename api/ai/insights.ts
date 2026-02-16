@@ -1,12 +1,34 @@
+/**
+ * Vercel serverless API: AI insights from events, journal, and moods.
+ * When you change this file (or any file under api/), push to git to deploy and update Vercel.
+ */
 import type { VercelRequest, VercelResponse } from "vercel";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MODEL = "openai/gpt-4.1-mini";
 const TIMEOUT_MS = 15000;
 
+/** Format YYYY-MM-DD as "Monday, February 16, 2026" or "Today" / "Yesterday" relative to ref. */
+function formatDateWithWeekday(dateStr: string, todayStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  const [ty, tm, td] = todayStr.split("-").map(Number);
+  const today = new Date(ty, tm - 1, td);
+  if (dateStr === todayStr) return "Today";
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-${String(yesterday.getDate()).padStart(2, "0")}`;
+  if (dateStr === yStr) return "Yesterday";
+  return date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+}
+
 const SYSTEM = `You are a supportive wellness coach. Given the user's recent logged events (food, exercise, sleep, meds), journal entries, and moods over the past days, write 3–5 short insights or observations.
 
-Format your response so the app can show a big heading, smaller headings, icons, and three levels of emphasis (italic, bold, blue):
+DATE RULES: When you refer to a specific day, always use the day of the week (e.g. "Monday" or "Monday, February 16"). Never say only "Feb 16" or "2/16". Use "Today" or "Yesterday" when that's what the data label says. The data you receive uses labels like "Today", "Yesterday", or "Monday, February 16, 2026" — use that same style in your response.
+
+FORMATTING: Use clean, minimal markdown. One blank line between sections, not between every line. No trailing spaces or extra punctuation.
+
+Structure your response so the app can show a big heading, section headings, and three levels of emphasis (italic, bold, blue):
 
 1) BIG HEADING (one only, at the very top)
    First line: # followed by a space and your main headline (e.g. "# Your week at a glance").
@@ -23,10 +45,10 @@ Format your response so the app can show a big heading, smaller headings, icons,
 5) EMPHASIS (three levels)
    - *italic* for occasional emphasis or tone (one asterisk each side). Example: "That's *really* helpful."
    - **bold** for somewhat important things (two asterisks each side). Example: "Your **sleep** was **consistent**."
-   - ***blue*** for super important only—key numbers and the most important terms (three asterisks each side). The app will color these blue. Use sparingly. Example: "You logged ***3*** ***workouts*** and ***7 hours*** of sleep this week."
+   - ***blue*** for super important only—key numbers and the most important terms (three asterisks each side). The app will color these blue. Use sparingly. Example: "On **Monday** you logged ***3*** ***workouts***."
 
-Example sentence using all three: "Your **nutrition** looks ***balanced***—***2*** meals logged and *plenty* of variety."
-Another: "## [icon:sleep] Sleep — You got ***6.5 hours*** last night. **Consistency** is improving."
+Example: "Your **nutrition** looks ***balanced***—***2*** meals logged and *plenty* of variety."
+Example: "## [icon:sleep] Sleep — You got ***6.5 hours*** on **Tuesday**. **Consistency** is improving."
 
 Use short paragraphs or bullets. Be specific, encouraging, and actionable. Never judgmental.`;
 
@@ -42,6 +64,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const { events = [], journal = [], moods = [] } = req.body ?? {};
 
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
   const eventsByDate: Record<string, string[]> = {};
   for (const e of events) {
     const d = e.date ?? "unknown";
@@ -53,22 +78,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const eventsText =
     Object.keys(eventsByDate).length > 0
       ? Object.entries(eventsByDate)
-          .map(([date, list]) => `${date}: ${list.join("; ")}`)
+          .map(([date, list]) => `${formatDateWithWeekday(date, todayStr)}: ${list.join("; ")}`)
           .join("\n")
       : "No events in this period.";
   const journalText =
     journal.length > 0
-      ? journal.map((j: { date?: string; text?: string; time?: string }) => `[${j.date ?? ""} ${j.time ?? ""}] ${j.text ?? ""}`).join("\n")
+      ? journal
+          .map((j: { date?: string; text?: string; time?: string }) => {
+            const label = j.date ? formatDateWithWeekday(j.date, todayStr) : "";
+            return `[${label} ${j.time ?? ""}] ${j.text ?? ""}`;
+          })
+          .join("\n")
       : "No journal entries.";
   const moodEntries = Array.isArray(moods) ? moods : Object.entries(moods).map(([date, m]) => ({ ...(m as object), date }));
   const moodsText =
     moodEntries.length > 0
       ? moodEntries
-          .map((m: { date?: string; emotion?: string; intensity?: number }) => `${m.date ?? ""}: ${m.emotion ?? "—"} (${m.intensity ?? "—"})`)
+          .map((m: { date?: string; emotion?: string; intensity?: number }) => {
+            const label = m.date ? formatDateWithWeekday(m.date, todayStr) : "";
+            return `${label}: ${m.emotion ?? "—"} (${m.intensity ?? "—"})`;
+          })
           .join("\n")
       : "No mood data.";
 
-  const userContent = `Recent data:\n\nEvents:\n${eventsText}\n\nJournal:\n${journalText}\n\nMoods:\n${moodsText}\n\nWrite 3–5 insights. Format: # Big heading, then ## [icon:name] Section (icons: sleep, food, exercise, meds, journal, mood, nutrition, summary, progress). Use *italic* for tone, **bold** for somewhat important, ***blue*** for super important only. Example: "You logged ***3*** **workouts** this week."`;
+  const userContent = `Reference: today's date is ${formatDateWithWeekday(todayStr, todayStr)} (${todayStr}).
+
+Recent data:
+
+Events:
+${eventsText}
+
+Journal:
+${journalText}
+
+Moods:
+${moodsText}
+
+Write 3–5 insights. Use day-of-week when referring to dates (e.g. "Monday" or "Today"). Format: # Big heading, then ## [icon:name] Section. Use *italic*, **bold**, ***blue*** sparingly. Keep formatting clean.`;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
