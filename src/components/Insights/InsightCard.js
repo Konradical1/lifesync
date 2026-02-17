@@ -18,17 +18,18 @@ const ICON_MAP = {
 /** Parse a line into segments: normal, bold, italic, blue, icon. Order: *** then ** then * then [icon:name]. */
 function parseInlineSegments(text) {
   const segments = [];
-  const re = /\*\*\*(.*?)\*\*\*|\*\*(.*?)\*\*|\*(.*?)\*|\[icon:(\w+)\]/g;
+  // Allow optional space in [icon: name]; capture only inner text for *** ** * (no asterisks in capture)
+  const re = /\*\*\*([^*]+?)\*\*\*|\*\*([^*]+?)\*\*|\*([^*]+?)\*|\[\s*icon\s*:\s*(\w+)\s*\]/gi;
   let lastIndex = 0;
   let match;
   while ((match = re.exec(text)) !== null) {
     if (match.index > lastIndex) {
       segments.push({ type: 'normal', text: text.slice(lastIndex, match.index) });
     }
-    if (match[1] !== undefined) segments.push({ type: 'blue', text: match[1] });
-    else if (match[2] !== undefined) segments.push({ type: 'bold', text: match[2] });
-    else if (match[3] !== undefined) segments.push({ type: 'italic', text: match[3] });
-    else if (match[4] !== undefined) segments.push({ type: 'icon', name: match[4] });
+    if (match[1] !== undefined) segments.push({ type: 'blue', text: String(match[1]).trim() });
+    else if (match[2] !== undefined) segments.push({ type: 'bold', text: String(match[2]).trim() });
+    else if (match[3] !== undefined) segments.push({ type: 'italic', text: String(match[3]).trim() });
+    else if (match[4] !== undefined) segments.push({ type: 'icon', name: String(match[4]).trim().toLowerCase() });
     lastIndex = re.lastIndex;
   }
   if (lastIndex < text.length) {
@@ -37,12 +38,12 @@ function parseInlineSegments(text) {
   return segments.length ? segments : [{ type: 'normal', text: text }];
 }
 
-/** Strip [icon:name] from string and return { iconName, text }. */
+/** Strip [icon:name] or [icon: name] from string and return { iconName, text }. */
 function stripIconFromHeader(str) {
-  const m = str.match(/^\[icon:(\w+)\]\s*(.*)$/);
-  if (m) return { iconName: m[1], text: m[2].trim() };
-  const m2 = str.match(/(.*?)\s*\[icon:(\w+)\]\s*(.*)$/);
-  if (m2) return { iconName: m2[2], text: (m2[1] + ' ' + m2[3]).trim() };
+  const m = str.match(/^\[\s*icon\s*:\s*(\w+)\s*\]\s*(.*)$/i);
+  if (m) return { iconName: m[1].toLowerCase(), text: m[2].trim() };
+  const m2 = str.match(/(.*?)\s*\[\s*icon\s*:\s*(\w+)\s*\]\s*(.*)$/i);
+  if (m2) return { iconName: m2[2].toLowerCase(), text: (m2[1] + ' ' + m2[3]).trim() };
   return { iconName: null, text: str };
 }
 
@@ -144,7 +145,7 @@ function renderFormattedBody(body) {
       elements.push(<View key={key++} style={styles.paragraphGap} />);
       continue;
     }
-    const segments = parseInlineSegments(line);
+    const segments = parseInlineSegments(trimmed);
     elements.push(renderInlineSegments(segments, key++));
   }
   return elements;
@@ -196,33 +197,32 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   title: {
-    fontSize: typography.headline.fontSize,
-    fontWeight: typography.headline.fontWeight,
+    ...typography.headline,
     color: colors.textPrimary,
     marginBottom: spacing.sm,
   },
   body: {
-    fontSize: typography.body.fontSize,
+    ...typography.body,
     color: colors.textSecondary,
     lineHeight: 24,
   },
   bold: {
-    fontSize: typography.body.fontSize,
+    ...typography.body,
+    fontFamily: typography.fontFamilyBold,
     color: colors.textSecondary,
     lineHeight: 24,
-    fontWeight: '700',
   },
   italic: {
-    fontSize: typography.body.fontSize,
+    ...typography.body,
     color: colors.textSecondary,
     lineHeight: 24,
     fontStyle: 'italic',
   },
   highlight: {
-    fontSize: typography.body.fontSize,
+    ...typography.body,
+    fontFamily: typography.fontFamilySemiBold,
     color: colors.accent,
     lineHeight: 24,
-    fontWeight: '600',
   },
   inlineRow: {
     flexDirection: 'row',
@@ -245,27 +245,25 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   bigHeading: {
-    fontSize: typography.title2.fontSize,
-    fontWeight: typography.title2.fontWeight,
+    ...typography.title2,
     color: colors.textPrimary,
     marginBottom: spacing.md,
     lineHeight: 28,
   },
   sectionHeader: {
-    fontSize: typography.headline.fontSize,
-    fontWeight: typography.headline.fontWeight,
+    ...typography.headline,
     color: colors.textPrimary,
-    marginTop: spacing.sm,
-    marginBottom: spacing.xs,
+    marginTop: spacing.xl,
+    marginBottom: spacing.sm,
   },
   subHeader: {
-    fontSize: typography.callout.fontSize,
-    fontWeight: '600',
+    ...typography.callout,
+    fontFamily: typography.fontFamilySemiBold,
     color: colors.textPrimary,
-    marginTop: spacing.xs,
+    marginTop: spacing.sm,
     marginBottom: spacing.xxs,
   },
   paragraphGap: {
-    height: spacing.xs,
+    height: spacing.sm,
   },
 });

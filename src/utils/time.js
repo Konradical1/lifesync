@@ -146,6 +146,7 @@ export function getSleepSegmentForDay(event, viewDateStr) {
 /**
  * Get event start (minutes from midnight) and duration (minutes).
  * For sleep: uses startTime and endTime (handles overnight).
+ * For other: uses startTime and endTime when present (handles overnight).
  * For exercise: uses time + duration.
  * For others: uses time, default 30 min duration.
  */
@@ -154,6 +155,13 @@ export function getEventStartAndDuration(event) {
   const DEFAULT_DURATION = 30;
 
   if (event.type === 'sleep' && event.startTime && event.endTime) {
+    const start = parseTimeToMinutes(event.startTime);
+    let end = parseTimeToMinutes(event.endTime);
+    if (end <= start) end += MINS_PER_DAY; // overnight
+    return { startMinutes: start, durationMinutes: end - start };
+  }
+
+  if (event.type === 'other' && event.startTime && event.endTime) {
     const start = parseTimeToMinutes(event.startTime);
     let end = parseTimeToMinutes(event.endTime);
     if (end <= start) end += MINS_PER_DAY; // overnight

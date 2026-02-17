@@ -55,7 +55,11 @@ export default function RecentEventsList() {
             style={styles.icon}
           />
           <View style={styles.content}>
-            <Text style={[styles.time, { color: eventColor }]}>{formatTime12h(event.time ?? event.startTime)}</Text>
+            <Text style={[styles.time, { color: eventColor }]}>
+              {event.type === EVENT_TYPES.other && event.startTime && event.endTime
+                ? `${formatTime12h(event.startTime)}–${formatTime12h(event.endTime)}`
+                : formatTime12h(event.time ?? event.startTime)}
+            </Text>
             <Text style={styles.description} numberOfLines={1}>
               {getEventDescription(event)}
             </Text>

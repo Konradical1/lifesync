@@ -26,6 +26,9 @@ function getEventTimeRange(event) {
   if (event.type === EVENT_TYPES.sleep && event.startTime && event.endTime) {
     return `${formatTime12h(event.startTime)}–${formatTime12h(event.endTime)}`;
   }
+  if (event.type === EVENT_TYPES.other && event.startTime && event.endTime) {
+    return `${formatTime12h(event.startTime)}–${formatTime12h(event.endTime)}`;
+  }
   const t = event.time ?? event.startTime;
   return t ? formatTime12h(t) : '';
 }
@@ -90,7 +93,7 @@ export default function EventCard({
       <View style={[styles.bar, { backgroundColor: eventColor }]} />
       <View style={styles.content}>
         <Text style={[styles.time, { color: eventColor }]}>
-          {formatTime12h(event.time ?? event.startTime)}
+          {getEventTimeRange(event) || formatTime12h(event.time ?? event.startTime)}
         </Text>
         <Ionicons
           name={EVENT_ICON_NAMES[event.type] ?? 'document-text-outline'}

@@ -1,15 +1,25 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing, typography } from '../../theme/constants';
+import { colors, spacing } from '../../theme/constants';
+
+const LOGO_HEIGHT = 44;
 
 export default function Header() {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Journal X</Text>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={styles.logoWrap}>
+        <Image
+          source={require('../../../assets/JournalXWithText.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
+      </View>
       <TouchableOpacity
         onPress={() => navigation.navigate('HomeTab', { screen: 'Profile' })}
         hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
@@ -25,12 +35,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingLeft: 0,
+    paddingRight: spacing.md,
+    paddingBottom: spacing.sm,
   },
-  title: {
-    fontSize: typography.title2.fontSize,
-    fontWeight: typography.title2.fontWeight,
-    color: colors.textPrimary,
+  logoWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    marginLeft: -40,
+  },
+  logo: {
+    height: LOGO_HEIGHT,
+    width: undefined,
+    maxWidth: 240,
   },
 });

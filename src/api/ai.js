@@ -139,7 +139,7 @@ export async function getDaySummary(payload) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), SUMMARY_TIMEOUT_MS);
   try {
-    const res = await fetch(AI.summary, {
+    const res = await fetch(AI.summaryShort, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

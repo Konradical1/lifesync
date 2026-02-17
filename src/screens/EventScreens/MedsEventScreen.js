@@ -28,8 +28,9 @@ export default function MedsEventScreen() {
   const [name, setName] = useState('');
   const [dosage, setDosage] = useState('');
 
-  const handleChipPress = (medName) => {
-    setName(medName);
+  const handleChipPress = (med) => {
+    setName(med.name);
+    setDosage(med.dosage ? String(med.dosage) : '');
   };
 
   const handleSave = () => {
@@ -70,11 +71,13 @@ export default function MedsEventScreen() {
             <View style={styles.chipsRow}>
               {recentMeds.map((med) => (
                 <TouchableOpacity
-                  key={med}
+                  key={med.name}
                   style={styles.chip}
                   onPress={() => handleChipPress(med)}
                 >
-                  <Text style={styles.chipText}>{med}</Text>
+                  <Text style={styles.chipText}>
+                    {`${med.name} · ${med.dosage} ${med.unit || 'mg'}`}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>

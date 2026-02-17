@@ -29,6 +29,16 @@ function buildEventWithNewStartTime(event, newDate, newStartMinutes) {
     };
   }
 
+  if (event.type === EVENT_TYPES.other && event.startTime && event.endTime) {
+    const endMinutes = (newStartMinutes + durationMinutes) % (24 * 60);
+    return {
+      ...event,
+      date: newDate,
+      startTime: minutesToTime24(newStartMinutes),
+      endTime: minutesToTime24(endMinutes),
+    };
+  }
+
   return {
     ...event,
     date: newDate,

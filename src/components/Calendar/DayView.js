@@ -146,6 +146,9 @@ export default function DayView({
   const [isDragging, setIsDragging] = useState(false);
   const [nowTick, setNowTick] = useState(0);
   const scrollRef = useRef(null);
+  const hasScrolledToCurrentTimeRef = useRef(false);
+  const isDraggingRef = useRef(false);
+  isDraggingRef.current = isDragging;
 
   const isToday = date === getTodayString();
   const nowLineTop = isToday
@@ -191,15 +194,29 @@ export default function DayView({
     return () => clearTimeout(id);
   }, [focusedId, date, displayItems, isMoodMode, onFocusedEventScrolled, onFocusedMoodScrolled]);
 
-  // When opening day view for today with no focused item, scroll to current time
+  // Reset "scrolled to current time" when leaving today so we scroll once when coming back
   useEffect(() => {
-    if (!isToday || focusedId || nowLineTop == null) return;
+    if (!isToday) hasScrolledToCurrentTimeRef.current = false;
+  }, [isToday]);
+
+  // When opening day view for today with no focused item, scroll to current time (once only, not while dragging)
+  useEffect(() => {
+    if (
+      !isToday ||
+      focusedId ||
+      nowLineTop == null ||
+      isDragging ||
+      hasScrolledToCurrentTimeRef.current
+    )
+      return;
     const offsetY = Math.max(0, nowLineTop - 80);
     const id = setTimeout(() => {
+      if (isDraggingRef.current) return;
+      hasScrolledToCurrentTimeRef.current = true;
       scrollRef.current?.scrollTo({ y: offsetY, animated: true });
     }, 150);
     return () => clearTimeout(id);
-  }, [date, isToday, focusedId, nowLineTop]);
+  }, [date, isToday, focusedId, nowLineTop, isDragging]);
 
   const handleTimeChange = useCallback(
     (updatedEvent) => {

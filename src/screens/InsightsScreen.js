@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ScrollView, Text, View, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { useStore, useEvents } from '../store/useStore';
+import { useStore, useEvents, useLatestInsight } from '../store/useStore';
 import { getInsights } from '../api/ai';
 import InsightCard from '../components/Insights/InsightCard';
 import { colors, spacing, typography } from '../theme/constants';
@@ -27,8 +27,10 @@ function getLast7Days() {
 export default function InsightsScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
-  const { state } = useStore();
+  const { state, dispatch } = useStore();
   const events = useEvents();
+  const latestInsight = useLatestInsight();
+  const today = formatDateKey(new Date());
   const dates = getLast7Days();
   const recentEvents = state.events.filter((e) => dates.includes(e.date));
   const recentJournal = state.journal.filter((j) => dates.includes(j.date));
@@ -39,28 +41,44 @@ export default function InsightsScreen() {
     return { date, emotion: latest.emotion, intensity: latest.intensity };
   }).filter((m) => m && (m.emotion || m.intensity));
 
-  const [aiInsights, setAiInsights] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState(null);
+  const hasAutoFetchedNewDay = useRef(false);
 
   const fetchInsights = () => {
     setAiError(null);
     setAiLoading(true);
     getInsights({ events: recentEvents, journal: recentJournal, moods })
       .then((result) => {
-        if (result.ok) setAiInsights(result.insights);
-        else setAiError(result.error || 'Could not load insights');
+        if (result.ok) {
+          dispatch({
+            type: 'ADD_INSIGHTS_ENTRY',
+            payload: {
+              id: 'insight_' + Date.now(),
+              date: today,
+              text: result.insights,
+              createdAt: new Date().toISOString(),
+            },
+          });
+        } else {
+          setAiError(result.error || 'Could not load insights');
+        }
       })
       .finally(() => setAiLoading(false));
   };
 
+  // Regenerate only on a new day: if we have a saved insight from a previous day, auto-fetch once
   useEffect(() => {
-    if (recentEvents.length > 0 || recentJournal.length > 0 || moods.length > 0) {
+    if (hasAutoFetchedNewDay.current) return;
+    const hasData = recentEvents.length > 0 || recentJournal.length > 0 || moods.length > 0;
+    if (!hasData) return;
+    const isNewDay = latestInsight && latestInsight.date !== today;
+    if (isNewDay) {
+      hasAutoFetchedNewDay.current = true;
       fetchInsights();
     }
-  }, []);
+  }, [latestInsight?.date, today]);
 
-  const today = formatDateKey(new Date());
   const todayEvents = events.filter((e) => e.date === today);
   const sleepCount = events.filter((e) => e.type === 'sleep').length;
   const foodCount = events.filter((e) => e.type === 'food').length;
@@ -93,15 +111,23 @@ export default function InsightsScreen() {
         {aiError && (
           <Text style={styles.errorText}>{aiError}</Text>
         )}
-        {aiInsights && !aiLoading && (
-          <InsightCard title="From your recent data" body={aiInsights} formatted />
+        {latestInsight?.text && !aiLoading && (
+          <>
+            <InsightCard title="From your recent data" body={latestInsight.text} formatted />
+            <Text style={styles.generatedLabel}>
+              Generated {latestInsight.date === today ? 'today' : latestInsight.date}
+            </Text>
+          </>
         )}
-        {!aiInsights && !aiLoading && !aiError && recentEvents.length === 0 && recentJournal.length === 0 && moods.length === 0 && (
+        {!latestInsight?.text && !aiLoading && !aiError && recentEvents.length === 0 && recentJournal.length === 0 && moods.length === 0 && (
           <Text style={styles.hint}>Log events, journal, and moods to see AI insights.</Text>
         )}
-        {!aiLoading && (aiInsights || aiError) && (
+        {!latestInsight?.text && !aiLoading && !aiError && (recentEvents.length > 0 || recentJournal.length > 0 || moods.length > 0) && (
+          <Text style={styles.hint}>Tap Refresh to generate your first insights.</Text>
+        )}
+        {!aiLoading && (
           <TouchableOpacity style={styles.refreshButton} onPress={fetchInsights}>
-            <Text style={styles.refreshButtonText}>Refresh insights</Text>
+            <Text style={styles.refreshButtonText}>{latestInsight?.text ? 'Refresh insights' : 'Generate insights'}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -220,6 +246,13 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
     marginHorizontal: spacing.md,
     fontStyle: 'italic',
+  },
+  generatedLabel: {
+    fontSize: typography.caption1.fontSize,
+    color: colors.textTertiary,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.xs,
+    marginBottom: spacing.xs,
   },
   refreshButton: {
     alignSelf: 'flex-start',

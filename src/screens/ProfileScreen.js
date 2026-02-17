@@ -28,6 +28,7 @@ export default function ProfileScreen() {
   const [medicalConditions, setMedicalConditions] = useState(profile.medicalConditions ?? '');
   const [calorieGoal, setCalorieGoal] = useState(profile.calorieGoal ?? '');
   const [proteinGoal, setProteinGoal] = useState(profile.proteinGoal ?? '');
+  const [waterGoalOz, setWaterGoalOz] = useState(profile.waterGoalOz ?? '');
   const [suggestError, setSuggestError] = useState('');
 
   useEffect(() => {
@@ -38,6 +39,7 @@ export default function ProfileScreen() {
     setMedicalConditions(profile.medicalConditions ?? '');
     setCalorieGoal(profile.calorieGoal ?? '');
     setProteinGoal(profile.proteinGoal ?? '');
+    setWaterGoalOz(profile.waterGoalOz ?? '');
   }, [
     profile.name,
     profile.age,
@@ -46,6 +48,7 @@ export default function ProfileScreen() {
     profile.medicalConditions,
     profile.calorieGoal,
     profile.proteinGoal,
+    profile.waterGoalOz,
   ]);
 
   const handleSuggestGoals = () => {
@@ -70,6 +73,7 @@ export default function ProfileScreen() {
         medicalConditions: medicalConditions.trim(),
         calorieGoal: calorieGoal.trim(),
         proteinGoal: proteinGoal.trim(),
+        waterGoalOz: waterGoalOz.trim(),
       },
     });
     navigation.goBack();
@@ -166,6 +170,17 @@ export default function ProfileScreen() {
             value={proteinGoal}
             onChangeText={setProteinGoal}
             placeholder="e.g. 120"
+            placeholderTextColor={colors.textTertiary}
+            keyboardType="numeric"
+          />
+        </View>
+        <View style={styles.field}>
+          <Text style={styles.label}>Daily water goal (oz)</Text>
+          <TextInput
+            style={styles.input}
+            value={waterGoalOz}
+            onChangeText={setWaterGoalOz}
+            placeholder="e.g. 64"
             placeholderTextColor={colors.textTertiary}
             keyboardType="numeric"
           />

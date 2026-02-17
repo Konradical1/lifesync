@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useStore } from '../../store/useStore';
 import { EVENT_TYPES } from '../../store/mockData';
-import { getTimeNow24h } from '../../utils/time';
 import { colors, spacing, typography, borderRadius } from '../../theme/constants';
+import { formatTime12h } from '../../utils/time';
 
 function formatDateKey(d) {
   const y = d.getFullYear();
@@ -14,6 +15,9 @@ function formatDateKey(d) {
   return `${y}-${m}-${day}`;
 }
 
+function formatTime24h(d) {
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
 
 function generateId() {
   return 'e_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
@@ -24,18 +28,24 @@ export default function OtherEventScreen() {
   const insets = useSafeAreaInsets();
   const { dispatch } = useStore();
 
+  const now = new Date();
+  const endDefault = new Date(now.getTime() + 30 * 60 * 1000);
   const [note, setNote] = useState('');
+  const [startTime, setStartTime] = useState(now);
+  const [endTime, setEndTime] = useState(endDefault);
+  const [showTimePicker, setShowTimePicker] = useState(null);
 
   const handleSave = () => {
     if (!note.trim()) return;
-    const date = formatDateKey(new Date());
+    const date = formatDateKey(startTime);
     dispatch({
       type: 'ADD_EVENT',
       payload: {
         id: generateId(),
         type: EVENT_TYPES.other,
         date,
-        time: getTimeNow24h(),
+        startTime: formatTime24h(startTime),
+        endTime: formatTime24h(endTime),
         note: note.trim(),
       },
     });
@@ -43,7 +53,7 @@ export default function OtherEventScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <ScrollView style={[styles.container, { paddingTop: insets.top }]} contentContainerStyle={styles.contentScroll}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={styles.backButton}>Cancel</Text>
@@ -52,9 +62,33 @@ export default function OtherEventScreen() {
         <View style={{ width: 60 }} />
       </View>
       <View style={styles.content}>
+        <Text style={styles.label}>Start time</Text>
+        <TouchableOpacity style={styles.input} onPress={() => setShowTimePicker((p) => (p === 'start' ? null : 'start'))}>
+          <Text style={styles.inputText}>{formatTime12h(formatTime24h(startTime))}</Text>
+        </TouchableOpacity>
+        {showTimePicker === 'start' && (
+          <DateTimePicker
+            value={startTime}
+            mode="time"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={(_, d) => d && setStartTime(d)}
+          />
+        )}
+        <Text style={styles.label}>End time</Text>
+        <TouchableOpacity style={styles.input} onPress={() => setShowTimePicker((p) => (p === 'end' ? null : 'end'))}>
+          <Text style={styles.inputText}>{formatTime12h(formatTime24h(endTime))}</Text>
+        </TouchableOpacity>
+        {showTimePicker === 'end' && (
+          <DateTimePicker
+            value={endTime}
+            mode="time"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={(_, d) => d && setEndTime(d)}
+          />
+        )}
         <Text style={styles.label}>Note (AI will interpret later)</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, styles.textAreaInput]}
           placeholder="Freeform text…"
           placeholderTextColor={colors.textTertiary}
           value={note}
@@ -69,7 +103,7 @@ export default function OtherEventScreen() {
           <Text style={styles.saveButtonText}>Save</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -104,12 +138,22 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: spacing.xs,
   },
+  contentScroll: {
+    paddingBottom: spacing.xl,
+  },
   input: {
     backgroundColor: colors.surface,
     borderRadius: borderRadius.sm,
     padding: spacing.md,
     fontSize: typography.body.fontSize,
     color: colors.textPrimary,
+    marginBottom: spacing.md,
+  },
+  inputText: {
+    fontSize: typography.body.fontSize,
+    color: colors.textPrimary,
+  },
+  textAreaInput: {
     minHeight: 120,
     textAlignVertical: 'top',
   },

@@ -1,34 +1,35 @@
-// Journal X Design System — Dark mode only, 70/20/10 rule
+// Journal X Design System — Dark mode, high contrast
 
 export const colors = {
-  // 70% — Background
+  // Background — original dark + more contrast
   background: '#0D1117',
   backgroundSecondary: '#010409',
 
-  // 20% — Surface / cards
+  // Surface / cards
   surface: '#161B22',
   surfaceElevated: '#21262D',
 
-  // 10% — Accent (navy blue)
+  // Accent — original blue, slightly brighter for contrast
   accent: '#58A6FF',
   accentMuted: '#388BFD',
 
-  // Text
-  textPrimary: '#E6EDF3',
+  // Text — brighter for more contrast
+  textPrimary: '#F0F6FC',
   textSecondary: '#8B949E',
   textTertiary: '#6E7681',
   textHighlight: '#58A6FF',
   textMuted: '#6E7681',
 
-  // Border / divider
+  // Border / divider — more visible
   border: '#30363D',
   borderLight: '#21262D',
 
-  // Section alternating shade (subtle)
-  sectionShade: 'rgba(22, 27, 34, 0.35)',
+  // Section alternating shade
+  sectionShade: 'rgba(22, 27, 34, 0.5)',
 
-  // Event type colors (calendar + add event)
+  // Event type colors — original
   eventSleep: '#6366F1',
+  water: '#0EA5E9',
   eventFood: '#22C55E',
   eventExercise: '#F59E0B',
   eventMeds: '#EC4899',
@@ -43,20 +44,28 @@ export const EVENT_TYPE_COLORS = {
   other: colors.eventOther,
 };
 
+// Inter — loaded in App.js; typography is bolder throughout
+export const fontFamily = 'Inter_400Regular';
+export const fontFamilyMedium = 'Inter_500Medium';
+export const fontFamilySemiBold = 'Inter_600SemiBold';
+export const fontFamilyBold = 'Inter_700Bold';
+
 export const typography = {
-  // SF-like system defaults, medium contrast
-  fontFamily: undefined, // system default
-  largeTitle: { fontSize: 34, fontWeight: '700' },
-  title1: { fontSize: 28, fontWeight: '600' },
-  title2: { fontSize: 22, fontWeight: '600' },
-  title3: { fontSize: 20, fontWeight: '600' },
-  headline: { fontSize: 17, fontWeight: '600' },
-  body: { fontSize: 17, fontWeight: '400' },
-  callout: { fontSize: 16, fontWeight: '400' },
-  subhead: { fontSize: 15, fontWeight: '400' },
-  footnote: { fontSize: 13, fontWeight: '400' },
-  caption1: { fontSize: 12, fontWeight: '400' },
-  caption2: { fontSize: 11, fontWeight: '400' },
+  fontFamily,
+  fontFamilyMedium,
+  fontFamilySemiBold,
+  fontFamilyBold,
+  largeTitle: { fontSize: 34, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+  title1: { fontSize: 28, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+  title2: { fontSize: 22, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+  title3: { fontSize: 20, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+  headline: { fontSize: 17, fontWeight: '700', fontFamily: 'Inter_700Bold' },
+  body: { fontSize: 17, fontWeight: '500', fontFamily: 'Inter_500Medium' },
+  callout: { fontSize: 16, fontWeight: '500', fontFamily: 'Inter_500Medium' },
+  subhead: { fontSize: 15, fontWeight: '500', fontFamily: 'Inter_500Medium' },
+  footnote: { fontSize: 13, fontWeight: '500', fontFamily: 'Inter_500Medium' },
+  caption1: { fontSize: 12, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
+  caption2: { fontSize: 11, fontWeight: '500', fontFamily: 'Inter_500Medium' },
 };
 
 export const spacing = {

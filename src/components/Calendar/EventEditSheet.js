@@ -21,6 +21,8 @@ import { formatTime12h } from '../../utils/time';
 import { colors, spacing, typography, borderRadius } from '../../theme/constants';
 import { EVENT_TYPE_COLORS } from '../../theme/constants';
 import { extractFood, extractExercise } from '../../api/ai';
+import { isSupabaseConfigured } from '../../api/supabase';
+import { deleteEventFromSupabase } from '../../api/supabaseSync';
 
 function parseTimeToDate(time24) {
   const [h, m] = (time24 || '00:00').split(':').map(Number);
@@ -90,6 +92,17 @@ export default function EventEditSheet({ event, onClose }) {
       setStartTime(parseTimeToDate(event.startTime));
       setEndTime(parseTimeToDate(event.endTime));
     }
+    if (event.type === EVENT_TYPES.other) {
+      const start = event.startTime ?? event.time ?? '00:00';
+      let end = event.endTime;
+      if (!end) {
+        const [h, m] = start.split(':').map(Number);
+        const endM = (h * 60 + m + 30) % (24 * 60);
+        end = `${String(Math.floor(endM / 60)).padStart(2, '0')}:${String(endM % 60).padStart(2, '0')}`;
+      }
+      setStartTime(parseTimeToDate(start));
+      setEndTime(parseTimeToDate(end));
+    }
   }, [event?.id, event]);
 
   const saveEvent = () => {
@@ -119,7 +132,8 @@ export default function EventEditSheet({ event, onClose }) {
         payload.unit = unit || 'mg';
         break;
       case EVENT_TYPES.other:
-        payload.time = formatTime24h(timeDate);
+        payload.startTime = formatTime24h(startTime);
+        payload.endTime = formatTime24h(endTime);
         payload.note = note;
         break;
       default:
@@ -174,6 +188,9 @@ export default function EventEditSheet({ event, onClose }) {
 
   const handleDelete = () => {
     dispatch({ type: 'DELETE_EVENT', payload: { id: event.id } });
+    if (isSupabaseConfigured()) {
+      deleteEventFromSupabase(event.id).catch(() => {});
+    }
     handleClose(true);
   };
 
@@ -420,19 +437,34 @@ export default function EventEditSheet({ event, onClose }) {
       case EVENT_TYPES.other:
         return (
           <>
-            <Text style={styles.label}>Time</Text>
+            <Text style={styles.label}>Start time</Text>
             <TouchableOpacity
               style={styles.input}
-              onPress={() => toggleTimePicker('time')}
+              onPress={() => toggleTimePicker('start')}
             >
-              <Text style={styles.inputText}>{formatTime12h(formatTime24h(timeDate))}</Text>
+              <Text style={styles.inputText}>{formatTime12h(formatTime24h(startTime))}</Text>
             </TouchableOpacity>
-            {showTimePicker === 'time' && (
+            {showTimePicker === 'start' && (
               <DateTimePicker
-                value={timeDate}
+                value={startTime}
                 mode="time"
                 display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={(_, d) => d && setTimeDate(d)}
+                onChange={(_, d) => d && setStartTime(d)}
+              />
+            )}
+            <Text style={styles.label}>End time</Text>
+            <TouchableOpacity
+              style={styles.input}
+              onPress={() => toggleTimePicker('end')}
+            >
+              <Text style={styles.inputText}>{formatTime12h(formatTime24h(endTime))}</Text>
+            </TouchableOpacity>
+            {showTimePicker === 'end' && (
+              <DateTimePicker
+                value={endTime}
+                mode="time"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={(_, d) => d && setEndTime(d)}
               />
             )}
             <Text style={styles.label}>Note</Text>

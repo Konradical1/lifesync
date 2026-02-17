@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,12 @@ import {
   StyleSheet,
   Pressable,
 } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  interpolate,
+} from 'react-native-reanimated';
 import { useNavigation } from '@react-navigation/native';
 import Slider from '@react-native-community/slider';
 import * as Haptics from 'expo-haptics';
@@ -14,6 +20,63 @@ import { useStore, useMood } from '../../store/useStore';
 import { MOOD_OPTIONS, generateMoodId } from '../../store/mockData';
 import { addMinutesToTime } from '../../utils/time';
 import { colors, spacing, typography, borderRadius } from '../../theme/constants';
+
+const REVEAL_DURATION_MS = 400;
+const REVEAL_STAGGER = 0.06;
+
+function RevealWord({ text, index, progress, style, addSpace }) {
+  const animatedStyle = useAnimatedStyle(() => {
+    const start = index * REVEAL_STAGGER;
+    const end = start + 0.25;
+    const opacity = interpolate(progress.value, [start, end], [0, 1], 'clamp');
+    const translateY = interpolate(progress.value, [start, end], [8, 0], 'clamp');
+    return { opacity, transform: [{ translateY }] };
+  });
+  return (
+    <Animated.Text style={[style, animatedStyle]}>
+      {text}{addSpace ? ' ' : ''}
+    </Animated.Text>
+  );
+}
+
+function TextReveal({ words, refreshTrigger, labelStyle, valueStyle }) {
+  const progress = useSharedValue(0);
+  const prevTrigger = useRef(refreshTrigger);
+  const hasAnimated = useRef(false);
+
+  useEffect(() => {
+    const runReveal = () => {
+      progress.value = 0;
+      requestAnimationFrame(() => {
+        progress.value = withTiming(1, { duration: (REVEAL_DURATION_MS / 1000) * 1.4 });
+      });
+    };
+    if (refreshTrigger != null && refreshTrigger > 0 && refreshTrigger !== prevTrigger.current) {
+      prevTrigger.current = refreshTrigger;
+      runReveal();
+    } else if (!hasAnimated.current) {
+      hasAnimated.current = true;
+      runReveal();
+    } else {
+      progress.value = 1;
+    }
+  }, [refreshTrigger, progress]);
+
+  return (
+    <View style={styles.revealRow}>
+      {words.map((word, i) => (
+        <RevealWord
+          key={i}
+          text={word.text}
+          index={i}
+          progress={progress}
+          style={word.isValue ? valueStyle : labelStyle}
+          addSpace={i < words.length - 1}
+        />
+      ))}
+    </View>
+  );
+}
 
 function formatDateKey(d) {
   const y = d.getFullYear();
@@ -30,7 +93,7 @@ function getMoodColor(id) {
   return MOOD_OPTIONS.find((m) => m.id === id)?.color ?? colors.textSecondary;
 }
 
-export default function MoodSelector() {
+export default function MoodSelector({ refreshTrigger }) {
   const today = formatDateKey(new Date());
   const saved = useMood(today);
   const { dispatch } = useStore();
@@ -78,16 +141,23 @@ export default function MoodSelector() {
   };
 
   const currentLabel = saved ? getMoodLabel(saved.emotion) : null;
+  const moodWords = [
+    { text: 'Your', isValue: false },
+    { text: 'current', isValue: false },
+    { text: 'mood', isValue: false },
+    { text: 'is', isValue: false },
+    { text: currentLabel ?? 'not set', isValue: true },
+  ];
 
   return (
     <View style={styles.container}>
       <View style={styles.displayRow}>
-        <Text style={styles.label}>
-          Your current mood is{' '}
-          <Text style={[styles.moodValue, { color: saved ? getMoodColor(saved.emotion) : colors.textSecondary }]}>
-            {currentLabel ?? 'not set'}
-          </Text>
-        </Text>
+        <TextReveal
+          words={moodWords}
+          refreshTrigger={refreshTrigger}
+          labelStyle={styles.label}
+          valueStyle={[styles.moodValue, { color: saved ? getMoodColor(saved.emotion) : colors.textSecondary }]}
+        />
         <View style={styles.buttonRow}>
           <TouchableOpacity
             style={styles.editHistoryButton}
@@ -219,10 +289,15 @@ const styles = StyleSheet.create({
     fontSize: typography.footnote.fontSize,
     color: colors.textTertiary,
   },
+  revealRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    flex: 1,
+    alignItems: 'center',
+  },
   label: {
     fontSize: typography.body.fontSize,
     color: colors.textSecondary,
-    flex: 1,
   },
   moodValue: {
     fontWeight: '600',

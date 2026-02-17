@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing, typography } from '../theme/constants';
+import { colors, spacing, typography, fontFamilyMedium, fontFamilyBold } from '../theme/constants';
 import HomeStack from './HomeStack';
 import InsightsStack from './InsightsStack';
 import AddEventStack from './AddEventStack';
@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
   },
   tabLabel: {
     fontSize: typography.caption1.fontSize,
-    fontWeight: '500',
+    fontFamily: fontFamilyMedium,
   },
   tabIcon: {
     fontSize: 22,
@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
   addButtonText: {
     fontSize: 36,
     color: colors.background,
-    fontWeight: '300',
+    fontFamily: fontFamilyBold,
   },
   addButtonTextFocused: {
     color: colors.background,

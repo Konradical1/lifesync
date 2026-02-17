@@ -67,12 +67,13 @@ export async function loadFromSupabase() {
   if (!userId) return null;
 
   try {
-    const [eventsRes, journalRes, summariesRes, moodRes, profileRes] = await Promise.all([
+    const [eventsRes, journalRes, summariesRes, moodRes, profileRes, waterRes] = await Promise.all([
       supabase.from('events').select('*').order('created_at', { ascending: false }),
       supabase.from('journal_entries').select('*').order('date').order('time'),
       supabase.from('summaries').select('date, text, created_at, updated_at').order('date'),
       supabase.from('mood').select('id, date, time, start_time, end_time, emotion, intensity, created_at').order('created_at', { ascending: false }),
       supabase.from('profile').select('*').eq('user_id', userId).maybeSingle(),
+      supabase.from('water').select('id, date, time, oz, created_at').eq('user_id', userId).order('created_at', { ascending: false }),
     ]);
 
     const events = (eventsRes.data ?? []).map(rowToEvent);
@@ -112,10 +113,19 @@ export async function loadFromSupabase() {
         medicalConditions: p.medical_conditions ?? '',
         calorieGoal: p.calorie_goal != null ? String(p.calorie_goal) : '',
         proteinGoal: p.protein_goal != null ? String(p.protein_goal) : '',
+        waterGoalOz: p.water_goal_oz != null ? String(p.water_goal_oz) : '',
       };
     }
 
-    return { events, journal, summaries, moodEntries, profile };
+    const waterEntries = (waterRes.data ?? []).map((r) => ({
+      id: r.id,
+      date: r.date,
+      time: r.time ?? null,
+      oz: r.oz ?? 0,
+      createdAt: r.created_at ?? null,
+    }));
+
+    return { events, journal, summaries, moodEntries, profile, waterEntries };
   } catch (err) {
     console.warn('[Supabase] Load failed:', err);
     return null;
@@ -164,6 +174,25 @@ export async function saveJournalToSupabase(journal) {
   });
   if (error) {
     console.warn('[Supabase] Save journal failed:', error);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Delete a journal entry from Supabase.
+ */
+export async function deleteJournalEntryFromSupabase(journalId) {
+  const userId = await ensureSignedIn();
+  if (!userId) return false;
+
+  const { error } = await supabase
+    .from('journal_entries')
+    .delete()
+    .eq('id', journalId)
+    .eq('user_id', userId);
+  if (error) {
+    console.warn('[Supabase] Delete journal entry failed:', error);
     return false;
   }
   return true;
@@ -275,6 +304,7 @@ export async function saveProfileToSupabase(profile) {
     medical_conditions: profile.medicalConditions ?? null,
     calorie_goal: profile.calorieGoal != null && profile.calorieGoal !== '' ? parseInt(profile.calorieGoal, 10) : null,
     protein_goal: profile.proteinGoal != null && profile.proteinGoal !== '' ? parseInt(profile.proteinGoal, 10) : null,
+    water_goal_oz: profile.waterGoalOz != null && profile.waterGoalOz !== '' ? parseInt(profile.waterGoalOz, 10) : null,
     updated_at: new Date().toISOString(),
   };
 
@@ -283,6 +313,50 @@ export async function saveProfileToSupabase(profile) {
   });
   if (error) {
     console.warn('[Supabase] Save profile failed:', error);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Save water entries to Supabase (upsert).
+ */
+export async function saveWaterEntriesToSupabase(waterEntries) {
+  const userId = await ensureSignedIn();
+  if (!userId) return false;
+
+  const rows = waterEntries.map((w) => ({
+    id: w.id,
+    user_id: userId,
+    date: w.date,
+    time: w.time ?? null,
+    oz: Number(w.oz) || 0,
+  }));
+
+  const { error } = await supabase.from('water').upsert(rows, {
+    onConflict: 'id',
+  });
+  if (error) {
+    console.warn('[Supabase] Save water entries failed:', error);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Delete a water entry from Supabase.
+ */
+export async function deleteWaterEntryFromSupabase(waterId) {
+  const userId = await ensureSignedIn();
+  if (!userId) return false;
+
+  const { error } = await supabase
+    .from('water')
+    .delete()
+    .eq('id', waterId)
+    .eq('user_id', userId);
+  if (error) {
+    console.warn('[Supabase] Delete water entry failed:', error);
     return false;
   }
   return true;
@@ -299,5 +373,6 @@ export async function saveFullStateToSupabase(state) {
     saveSummariesToSupabase(state.summaries),
     saveMoodEntriesToSupabase(state.moodEntries),
     saveProfileToSupabase(state.profile),
+    saveWaterEntriesToSupabase(state.waterEntries),
   ]);
 }
