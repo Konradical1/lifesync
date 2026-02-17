@@ -5,7 +5,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 import { useStore, useSummary, useLatestSummary, useEvents, useJournal, useMood } from '../../store/useStore';
-import { getDaySummary } from '../../api/ai';
+import { getDaySummaryShort } from '../../api/ai';
 import { colors, spacing, typography, borderRadius } from '../../theme/constants';
 
 function formatDateKey(d) {
@@ -39,7 +39,7 @@ export default function AISummaryCard() {
     if (!hasData) return;
     fetchedRef.current = true;
     setLoading(true);
-    getDaySummary({
+    getDaySummaryShort({
       date: today,
       events,
       journal,
@@ -63,7 +63,7 @@ export default function AISummaryCard() {
 
   const handleRefresh = () => {
     setLoading(true);
-    getDaySummary({
+    getDaySummaryShort({
       date: today,
       events,
       journal,

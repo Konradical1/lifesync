@@ -131,11 +131,38 @@ function normalizeExerciseData(data) {
 const SUMMARY_TIMEOUT_MS = 12000;
 
 /**
- * Get AI-generated day summary from events, journal, mood for a date.
+ * Get AI-generated day summary from events, journal, mood for a date (longer 2–3 sentences).
  * @param {{ date: string, events: array, journal: array, mood: object }} payload
  * @returns {Promise<{ ok: boolean, summary?: string, error?: string }>}
  */
 export async function getDaySummary(payload) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), SUMMARY_TIMEOUT_MS);
+  try {
+    const res = await fetch(AI.summary, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    const json = await res.json();
+    if (!res.ok) {
+      return { ok: false, error: json?.error || res.statusText || "Request failed" };
+    }
+    return { ok: true, summary: json?.summary ?? "" };
+  } catch (err) {
+    clearTimeout(timeout);
+    return { ok: false, error: err?.message || "Network error" };
+  }
+}
+
+/**
+ * Get a very short one-sentence AI day summary for the home screen.
+ * @param {{ date: string, events: array, journal: array, mood: object, profile?: object }} payload
+ * @returns {Promise<{ ok: boolean, summary?: string, error?: string }>}
+ */
+export async function getDaySummaryShort(payload) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), SUMMARY_TIMEOUT_MS);
   try {

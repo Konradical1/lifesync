@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing } from '../../theme/constants';
 
 const LOGO_HEIGHT = 44;
+const LOGO_WIDTH = 180;
 
 export default function Header() {
   const navigation = useNavigation();
@@ -16,7 +17,7 @@ export default function Header() {
       <View style={styles.logoWrap}>
         <Image
           source={require('../../../assets/JournalXWithText.png')}
-          style={styles.logo}
+          style={[styles.logo, { width: LOGO_WIDTH, height: LOGO_HEIGHT }]}
           resizeMode="contain"
         />
       </View>
@@ -35,7 +36,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingLeft: 0,
+    paddingLeft: spacing.md,
     paddingRight: spacing.md,
     paddingBottom: spacing.sm,
   },
@@ -43,11 +44,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-start',
-    marginLeft: -40,
+    marginLeft: -20,
   },
   logo: {
+    width: LOGO_WIDTH,
     height: LOGO_HEIGHT,
-    width: undefined,
-    maxWidth: 240,
   },
 });
