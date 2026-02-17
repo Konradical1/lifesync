@@ -33,7 +33,7 @@ export default function HomeScreen() {
       title="Refreshing"
       titleColor={colors.textSecondary}
       colors={Platform.OS === 'android' ? [colors.accent] : undefined}
-      progressViewOffset={Platform.OS === 'android' ? insets.top : undefined}
+      progressViewOffset={Platform.OS === 'android' ? 0 : undefined}
       progressBackgroundColor={Platform.OS === 'android' ? colors.surface : undefined}
     />
   );
@@ -67,23 +67,29 @@ export default function HomeScreen() {
 
   return (
     <ConfettiProvider>
-      <FlatList
-        style={styles.container}
-        contentContainerStyle={styles.content}
-        contentInsetAdjustmentBehavior="never"
-        showsVerticalScrollIndicator={false}
-        data={[]}
-        renderItem={() => null}
-        ListHeaderComponent={renderHeader}
-        refreshControl={refreshControl}
-        alwaysBounceVertical={true}
-        bounces={true}
-      />
+      <View style={[styles.wrapper, { paddingTop: insets.top }]}>
+        <FlatList
+          style={styles.container}
+          contentContainerStyle={styles.content}
+          contentInsetAdjustmentBehavior="never"
+          showsVerticalScrollIndicator={false}
+          data={[]}
+          renderItem={() => null}
+          ListHeaderComponent={renderHeader}
+          refreshControl={refreshControl}
+          alwaysBounceVertical={true}
+          bounces={true}
+        />
+      </View>
     </ConfettiProvider>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
   container: {
     flex: 1,
     backgroundColor: colors.background,
