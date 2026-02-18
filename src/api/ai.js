@@ -158,9 +158,9 @@ export async function getDaySummary(payload) {
 }
 
 /**
- * Get a very short one-sentence AI day summary for the home screen.
+ * Get a very short one-sentence AI day summary for the home screen (with time-based greeting and one highlighted word).
  * @param {{ date: string, events: array, journal: array, mood: object, profile?: object }} payload
- * @returns {Promise<{ ok: boolean, summary?: string, error?: string }>}
+ * @returns {Promise<{ ok: boolean, summary?: string, highlightedWord?: string, error?: string }>}
  */
 export async function getDaySummaryShort(payload) {
   const controller = new AbortController();
@@ -177,7 +177,11 @@ export async function getDaySummaryShort(payload) {
     if (!res.ok) {
       return { ok: false, error: json?.error || res.statusText || "Request failed" };
     }
-    return { ok: true, summary: json?.summary ?? "" };
+    return {
+      ok: true,
+      summary: json?.summary ?? "",
+      highlightedWord: json?.highlight ? String(json.highlight).trim() : undefined,
+    };
   } catch (err) {
     clearTimeout(timeout);
     return { ok: false, error: err?.message || "Network error" };

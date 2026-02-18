@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, LayoutAnimation, Platform, UIManager, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, LayoutAnimation, Platform, UIManager, ActivityIndicator, Animated } from 'react-native';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 import { useStore, useSummary, useLatestSummary, useEvents, useJournal, useMood } from '../../store/useStore';
 import { getDaySummaryShort } from '../../api/ai';
-import { colors, spacing, typography, borderRadius } from '../../theme/constants';
+import { colors, spacing, typography } from '../../theme/constants';
 
 function formatDateKey(d) {
   const y = d.getFullYear();
@@ -15,7 +15,7 @@ function formatDateKey(d) {
   return `${y}-${m}-${day}`;
 }
 
-export default function AISummaryCard() {
+export default function AISummaryCard({ refreshTrigger = 0 }) {
   const today = formatDateKey(new Date());
   const summaryToday = useSummary(today);
   const latestSummary = useLatestSummary(today);
@@ -23,6 +23,9 @@ export default function AISummaryCard() {
   const summary = storedEntry && typeof storedEntry === 'object' && storedEntry.text
     ? storedEntry.text
     : (storedEntry || null);
+  const highlightedWord = (storedEntry && typeof storedEntry === 'object' && storedEntry.highlightedWord)
+    ? storedEntry.highlightedWord
+    : '';
   const events = useEvents(today);
   const journal = useJournal(today);
   const mood = useMood(today);
@@ -31,7 +34,11 @@ export default function AISummaryCard() {
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
   const fetchedRef = useRef(false);
+  const lastRefreshTriggerRef = useRef(refreshTrigger);
+  const textOpacity = useRef(new Animated.Value(summary ? 1 : 0)).current;
+  const prevSummaryRef = useRef(summary);
 
+  // Initial fetch when we have data and no summary yet
   useEffect(() => {
     if (fetchedRef.current) return;
     if (summaryToday?.text) return;
@@ -48,20 +55,24 @@ export default function AISummaryCard() {
     })
       .then((result) => {
         if (result.ok && result.summary) {
-          dispatch({ type: 'SET_SUMMARY', payload: { date: today, text: result.summary } });
+          dispatch({
+            type: 'SET_SUMMARY',
+            payload: {
+              date: today,
+              text: result.summary,
+              highlightedWord: result.highlightedWord,
+            },
+          });
         }
       })
       .finally(() => setLoading(false));
-    // Run once when we have data for today and no summary yet
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handlePress = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setExpanded((e) => !e);
-  };
-
-  const handleRefresh = () => {
+  // Pull-to-refresh: generate new summary and save previous
+  useEffect(() => {
+    if (refreshTrigger === 0 || refreshTrigger === lastRefreshTriggerRef.current) return;
+    lastRefreshTriggerRef.current = refreshTrigger;
     setLoading(true);
     getDaySummaryShort({
       date: today,
@@ -72,11 +83,45 @@ export default function AISummaryCard() {
     })
       .then((result) => {
         if (result.ok && result.summary) {
-          dispatch({ type: 'SET_SUMMARY', payload: { date: today, text: result.summary } });
+          dispatch({
+            type: 'SET_SUMMARY',
+            payload: {
+              date: today,
+              text: result.summary,
+              highlightedWord: result.highlightedWord,
+            },
+          });
         }
       })
       .finally(() => setLoading(false));
+  }, [refreshTrigger, today, events, journal, mood, profile, dispatch]);
+
+  const handlePress = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpanded((e) => !e);
   };
+
+  // Fade in text when summary appears or updates (e.g. after refresh)
+  useEffect(() => {
+    if (!summary) return;
+    if (prevSummaryRef.current !== summary) {
+      prevSummaryRef.current = summary;
+      textOpacity.setValue(0);
+      Animated.timing(textOpacity, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    } else if (prevSummaryRef.current === undefined) {
+      prevSummaryRef.current = summary;
+      textOpacity.setValue(0);
+      Animated.timing(textOpacity, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [summary, textOpacity]);
 
   if (loading && !summary) {
     return (
@@ -88,7 +133,9 @@ export default function AISummaryCard() {
   }
 
   const fullText = summary ?? 'No data yet — start logging your day';
-  const highlight = summary ? (summary.includes('balanced') ? 'balanced' : summary.includes('track') ? 'on track' : '') : 'start logging';
+  const highlight = highlightedWord && fullText.includes(highlightedWord)
+    ? highlightedWord
+    : (summary && (summary.includes('balanced') ? 'balanced' : summary.includes('track') ? 'on track' : '')) || '';
   const parts = highlight ? fullText.split(highlight) : [fullText];
 
   return (
@@ -98,18 +145,16 @@ export default function AISummaryCard() {
         onPress={handlePress}
         style={[styles.card, expanded && styles.cardExpanded]}
       >
-        <Text style={styles.text} numberOfLines={expanded ? undefined : 2}>
+        <Animated.Text style={[styles.text, { opacity: textOpacity }]} numberOfLines={expanded ? undefined : 3}>
           {parts[0]}
           {parts.length > 1 ? <Text style={styles.highlight}>{highlight}</Text> : null}
           {parts[1] ?? ''}
-        </Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh} disabled={loading}>
+        </Animated.Text>
         {loading ? (
-          <ActivityIndicator size="small" color={colors.accent} />
-        ) : (
-          <Text style={styles.refreshButtonText}>Refresh</Text>
-        )}
+          <View style={styles.inlineLoader}>
+            <ActivityIndicator size="small" color={colors.accent} />
+          </View>
+        ) : null}
       </TouchableOpacity>
     </View>
   );
@@ -122,8 +167,8 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
     padding: spacing.md,
+    borderWidth: 0,
   },
   cardExpanded: {},
   loadingCard: {
@@ -137,24 +182,19 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   text: {
-    fontSize: typography.callout.fontSize,
-    color: colors.textSecondary,
-    lineHeight: 22,
+    fontSize: typography.body.fontSize,
+    fontFamily: typography.fontFamilyMedium,
+    fontStyle: 'italic',
+    color: colors.textPrimary,
+    lineHeight: 26,
   },
   highlight: {
     color: colors.accent,
-    fontWeight: '600',
+    fontFamily: typography.fontFamilySemiBold,
+    fontStyle: 'italic',
   },
-  refreshButton: {
+  inlineLoader: {
     marginTop: spacing.sm,
-    paddingVertical: spacing.xs,
     alignSelf: 'flex-start',
-    minWidth: 64,
-    alignItems: 'center',
-  },
-  refreshButtonText: {
-    fontSize: typography.footnote.fontSize,
-    color: colors.accent,
-    fontWeight: '500',
   },
 });

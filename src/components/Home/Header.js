@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing } from '../../theme/constants';
 
@@ -9,9 +10,10 @@ const LOGO_WIDTH = 180;
 
 export default function Header() {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.logoWrap}>
         <Image
           source={require('../../../assets/JournalXWithText.png')}
@@ -37,6 +39,16 @@ const styles = StyleSheet.create({
     paddingLeft: spacing.md,
     paddingRight: spacing.md,
     paddingBottom: spacing.sm,
+    backgroundColor: colors.background,
+    // Soft underglow (iOS)
+    shadowColor: colors.accent,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    // Android elevation + subtle glow via border
+    elevation: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(88, 166, 255, 0.12)',
   },
   logoWrap: {
     flexDirection: 'row',

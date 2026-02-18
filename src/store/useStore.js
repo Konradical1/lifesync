@@ -82,19 +82,25 @@ function storeReducer(state, action) {
           action.payload.entry,
         ],
       };
-    case 'SET_SUMMARY':
-      if (state.summaries[action.payload.date]) return state;
+    case 'SET_SUMMARY': {
+      const { date, text, highlightedWord } = action.payload;
+      const existing = state.summaries[date];
+      const previousText = existing?.text;
+      const now = new Date().toISOString();
       return {
         ...state,
         summaries: {
           ...state.summaries,
-          [action.payload.date]: {
-            text: action.payload.text,
-            createdAt: action.payload.createdAt ?? new Date().toISOString(),
-            updatedAt: action.payload.updatedAt ?? new Date().toISOString(),
+          [date]: {
+            text,
+            highlightedWord: highlightedWord ?? existing?.highlightedWord,
+            previousText: previousText ?? existing?.previousText,
+            createdAt: existing?.createdAt ?? now,
+            updatedAt: now,
           },
         },
       };
+    }
     case 'ADD_MOOD':
       return {
         ...state,

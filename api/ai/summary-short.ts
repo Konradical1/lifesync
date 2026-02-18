@@ -5,7 +5,19 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MODEL = "openai/gpt-4.1-mini";
 const TIMEOUT_MS = 10000;
 
-const SYSTEM = `You are a supportive wellness assistant. Given a day's logged events, journal, and mood, reply with exactly ONE short sentence for the home screen: a warm, encouraging summary (e.g. "You're on track today." or "Good logging — keep it up."). No bullet points, no multiple sentences. If there's little or no data, say one encouraging line like "Start logging to see your day summary." Stay positive and under 15 words.`;
+const SYSTEM = `You are a supportive wellness assistant. You will receive the time of day (morning/afternoon/evening), the user's first name (if provided), and the day's logged events, journal, and mood.
+
+Your reply must be valid JSON only, no other text:
+{"summary": "...", "highlight": "oneword"}
+
+Rules for "summary":
+- Start with a short, time-based greeting. If name is given: "Good morning, Alex." or "Hey Sarah, afternoon vibes —" or "Good evening, Jamie." If no name: "Good morning." or a fun time-based line like "Rise and shine." / "Afternoon check-in." / "Evening wrap-up."
+- After the greeting, add exactly ONE short encouraging sentence about their day (e.g. "You're on track today." or "Solid logging — keep it up."). If there's little or no data, say one encouraging line like "Start logging to see your day summary."
+- Stay positive. Total summary under 25 words.
+- No bullet points, no multiple sentences beyond greeting + one line.
+
+Rules for "highlight":
+- Pick exactly one word from your summary (the body sentence, not the greeting) to emphasize. Use a single word that carries the message (e.g. "on track", "balanced", "crushing", "start"). Return that one word in "highlight".`;
 
 type SummaryShortBody = {
   date?: string;
@@ -28,6 +40,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const body = (req.body ?? {}) as SummaryShortBody;
   const { date, events = [], journal = [], mood, profile } = body;
   const dateStr = typeof date === "string" ? date : "";
+
+  const hour = new Date().getHours();
+  const timeOfDay = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
+  const firstName = profile && typeof profile === "object" && typeof (profile as Record<string, unknown>).name === "string"
+    ? String((profile as Record<string, unknown>).name).trim().split(/\s+/)[0] || ""
+    : "";
 
   const eventsText =
     events.length > 0
@@ -55,9 +73,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
   const profileText = profileParts.length > 0 ? `Profile: ${profileParts.join(", ")}` : "";
 
-  const userContent = profileText
-    ? `Date: ${dateStr || "Today"}\n${profileText}\n\nEvents:\n${eventsText}\n\nJournal:\n${journalText}\n\n${moodText}\n\nReply with exactly one short sentence for the home screen.`
-    : `Date: ${dateStr || "Today"}\n\nEvents:\n${eventsText}\n\nJournal:\n${journalText}\n\n${moodText}\n\nReply with exactly one short sentence for the home screen.`;
+  const userContent = `Time of day: ${timeOfDay}.${firstName ? ` User's first name: ${firstName}.` : ""}\nDate: ${dateStr || "Today"}\n${profileText ? `${profileText}\n` : ""}\nEvents:\n${eventsText}\n\nJournal:\n${journalText}\n\n${moodText}\n\nReply with JSON only: {"summary": "Your greeting + one short sentence", "highlight": "oneword"}.`;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -89,8 +105,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(response.status).json(data);
     }
 
-    const summary = data?.choices?.[0]?.message?.content?.trim() ?? "";
-    return res.json({ summary });
+    const raw = data?.choices?.[0]?.message?.content?.trim() ?? "";
+    let summary = "";
+    let highlight = "";
+    try {
+      const parsed = JSON.parse(raw) as { summary?: string; highlight?: string };
+      summary = typeof parsed.summary === "string" ? parsed.summary.trim() : raw;
+      highlight = typeof parsed.highlight === "string" ? parsed.highlight.trim() : "";
+    } catch {
+      summary = raw;
+    }
+    return res.json({ summary, highlight: highlight || undefined });
   } catch (err) {
     clearTimeout(timeout);
     const message = err instanceof Error ? err.message : "Request failed";

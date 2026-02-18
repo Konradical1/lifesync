@@ -1,6 +1,5 @@
 import React, { useState, useCallback } from 'react';
 import { FlatList, View, Text, StyleSheet, RefreshControl, Platform } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ConfettiProvider } from '../components/ConfettiProvider';
 import Header from '../components/Home/Header';
 import AISummaryCard from '../components/Home/AISummaryCard';
@@ -9,13 +8,12 @@ import JournalEntry from '../components/Home/JournalEntry';
 import CalorieProteinGoals from '../components/Home/CalorieProteinGoals';
 import WaterTracker from '../components/Home/WaterTracker';
 import RecentEventsList from '../components/Home/RecentEventsList';
-import { colors, spacing, typography } from '../theme/constants';
+import { colors, spacing } from '../theme/constants';
 
 const SECTION_PADDING = spacing.md;
 const REFRESH_ANIMATION_MS = 1500;
 
 export default function HomeScreen() {
-  const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -40,12 +38,8 @@ export default function HomeScreen() {
 
   const renderHeader = useCallback(() => (
     <>
-      <View style={[styles.section, styles.headerSection]}>
-        <Header />
-      </View>
       <View style={[styles.section, styles.sectionShaded]}>
-        <Text style={styles.sectionHeader}>AI day <Text style={styles.sectionHeaderHighlight}>summary</Text></Text>
-        <AISummaryCard />
+        <AISummaryCard refreshTrigger={refreshKey} />
       </View>
       <View style={styles.section}>
         <MoodSelector refreshTrigger={refreshKey} />
@@ -67,7 +61,8 @@ export default function HomeScreen() {
 
   return (
     <ConfettiProvider>
-      <View style={[styles.wrapper, { paddingTop: insets.top }]}>
+      <View style={styles.wrapper}>
+        <Header />
         <FlatList
           style={styles.container}
           contentContainerStyle={styles.content}
@@ -100,21 +95,7 @@ const styles = StyleSheet.create({
   section: {
     paddingVertical: SECTION_PADDING,
   },
-  headerSection: {
-    paddingTop: 0,
-  },
   sectionShaded: {
     backgroundColor: colors.sectionShade,
-  },
-  sectionHeader: {
-    ...typography.footnote,
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
-    marginHorizontal: spacing.md,
-  },
-  sectionHeaderHighlight: {
-    ...typography.footnote,
-    fontFamily: typography.fontFamilySemiBold,
-    color: colors.accent,
   },
 });
