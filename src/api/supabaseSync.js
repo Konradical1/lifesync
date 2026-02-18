@@ -1,19 +1,13 @@
 /**
  * Supabase sync service for JournalX2.
- * Loads data on init, saves on changes. Uses anonymous auth for user scoping.
+ * Loads data on init, saves on changes. Requires authenticated session.
  */
 import { supabase, isSupabaseConfigured } from './supabase';
 
 async function ensureSignedIn() {
   if (!supabase) return null;
   const { data: { session } } = await supabase.auth.getSession();
-  if (session?.user?.id) return session.user.id;
-  const { data, error } = await supabase.auth.signInAnonymously();
-  if (error) {
-    console.warn('[Supabase] Anonymous sign-in failed:', error.message);
-    return null;
-  }
-  return data?.user?.id ?? null;
+  return session?.user?.id ?? null;
 }
 
 function eventToRow(e) {

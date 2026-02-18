@@ -12,8 +12,45 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 import { colors } from './src/theme/constants';
+import { AuthProvider, useAuth } from './src/store/AuthContext';
 import { StoreProvider } from './src/store/useStore';
 import TabNavigator from './src/navigation/TabNavigator';
+import AuthStack from './src/navigation/AuthStack';
+
+const navTheme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    primary: colors.accent,
+    background: colors.background,
+    card: colors.surface,
+    text: colors.textPrimary,
+    border: colors.border,
+    notification: colors.accent,
+  },
+};
+
+function RootNavigator() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color={colors.accent} />
+      </View>
+    );
+  }
+
+  if (!user) {
+    return <AuthStack />;
+  }
+
+  return (
+    <StoreProvider>
+      <TabNavigator />
+    </StoreProvider>
+  );
+}
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -34,25 +71,12 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <StoreProvider>
-        <NavigationContainer
-          theme={{
-            ...DarkTheme,
-            colors: {
-              ...DarkTheme.colors,
-              primary: colors.accent,
-              background: colors.background,
-              card: colors.surface,
-              text: colors.textPrimary,
-              border: colors.border,
-              notification: colors.accent,
-            },
-          }}
-        >
-          <StatusBar style="light" />
-          <TabNavigator />
-        </NavigationContainer>
-        </StoreProvider>
+        <AuthProvider>
+          <NavigationContainer theme={navTheme}>
+            <StatusBar style="light" />
+            <RootNavigator />
+          </NavigationContainer>
+        </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
