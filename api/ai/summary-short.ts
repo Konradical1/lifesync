@@ -18,7 +18,7 @@ Rules for "summary":
 - Tone: warm and supportive but honest. Total summary around 45–55 words. No bullet points or em dashes.
 
 Rules for "highlight":
-- Pick exactly one word from your summary (from the two body sentences, not the greeting) to emphasize. Return that word in "highlight".`;
+- Pick exactly two word from your summary, one from each sentence (from the two body sentences, not the greeting) to emphasize. Return that word in "highlight".`;
 
 type SummaryShortBody = {
   date?: string;
