@@ -12,8 +12,8 @@ Your reply must be valid JSON only, no other text:
 
 Rules for "summary":
 - Start with a short, time-based greeting. If name is given: "Good morning, Alex." or "Good afternoon, Sarah!" or "Good evening, Jamie." If no name: "Good morning." or a fun time-based line.
-- After the greeting, add exactly ONE short sentence that reflects their actual day: mention food/sleep/water/mood/exercise if they logged any (e.g. "Nice breakfast and solid hydration." or "You logged sleep, mood, and water — keep it up."). If there's little or no data, say one encouraging line like "Start logging to see your day summary."
-- Stay positive. Total summary under 25 words. No bullet points.
+- After the greeting, add exactly ONE short sentence that reflects their actual day (OR HOW THEIR DAY IS GOING): mention food/sleep/water/mood/exercise if they logged any (e.g. "Nice cereal and oatmeal for breakfast and solid hydration." or "You logged sleep, mood, and water keep it up."). If there's little or no data, say one encouraging line like "Start logging to see your day summary."
+- Stay positive. Total summary around 35 words. No bullet points or em dashes.
 
 Rules for "highlight":
 - Pick exactly one word from your summary (the body sentence, not the greeting) to emphasize. Return that word in "highlight".`;
@@ -26,6 +26,8 @@ type SummaryShortBody = {
   waterEntries?: Array<{ date?: string; time?: string; oz?: number }>;
   profile?: Record<string, unknown>;
   refresh?: boolean;
+  /** User's local hour (0-23) so greeting matches their timezone. */
+  localHour?: number;
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -39,10 +41,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const body = (req.body ?? {}) as SummaryShortBody;
-  const { date, events = [], journal = [], mood, waterEntries = [], profile, refresh } = body;
+  const { date, events = [], journal = [], mood, waterEntries = [], profile, refresh, localHour } = body;
   const dateStr = typeof date === "string" ? date : "";
 
-  const hour = new Date().getHours();
+  const hour = typeof localHour === "number" && localHour >= 0 && localHour <= 23
+    ? localHour
+    : new Date().getHours();
   const timeOfDay = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
   const firstName = profile && typeof profile === "object" && typeof (profile as Record<string, unknown>).name === "string"
     ? String((profile as Record<string, unknown>).name).trim().split(/\s+/)[0] || ""

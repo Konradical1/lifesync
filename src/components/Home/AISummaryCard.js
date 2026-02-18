@@ -7,56 +7,11 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 import { useStore, useSummary, useLatestSummary, useEvents, useJournal, useMood, useWaterEntries } from '../../store/useStore';
 import { getDaySummaryShort } from '../../api/ai';
 import { colors, spacing, typography } from '../../theme/constants';
+import { SkeletonLines } from './SkeletonText';
 
 const BLUR_IN_OFFSET = 10;
 const BLUR_IN_DURATION = 380;
 const BLUR_IN_STAGGER_MS = 42;
-
-const SKELETON_LINE_HEIGHT = 14;
-const SKELETON_LINE_WIDTHS = ['100%', '82%', '55%'];
-
-function SkeletonLines() {
-  const opacity = useRef(new Animated.Value(0.35)).current;
-  useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(opacity, {
-          toValue: 0.6,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacity, {
-          toValue: 0.35,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
-  }, [opacity]);
-  return (
-    <View style={skeletonStyles.container}>
-      {SKELETON_LINE_WIDTHS.map((w, i) => (
-        <Animated.View
-          key={i}
-          style={[skeletonStyles.line, { width: w, opacity }]}
-        />
-      ))}
-    </View>
-  );
-}
-
-const skeletonStyles = StyleSheet.create({
-  container: {
-    gap: 10,
-  },
-  line: {
-    height: SKELETON_LINE_HEIGHT,
-    borderRadius: 6,
-    backgroundColor: colors.border,
-  },
-});
 
 function formatDateKey(d) {
   const y = d.getFullYear();
@@ -95,6 +50,7 @@ function doFetchSummary({ today, events, journal, mood, waterEntries, profile, d
     waterEntries: waterEntries || [],
     profile,
     refresh: !!refresh,
+    localHour: new Date().getHours(),
   }).then((result) => {
     if (result.ok && result.summary) {
       dispatch({
@@ -110,7 +66,7 @@ function doFetchSummary({ today, events, journal, mood, waterEntries, profile, d
   });
 }
 
-export default function AISummaryCard({ refreshTrigger = 0, onRefreshRef }) {
+export default function AISummaryCard({ onRefreshRef, onFetchDone, onLoadingChange, animTrigger = 0 }) {
   const today = formatDateKey(new Date());
   const summaryToday = useSummary(today);
   const latestSummary = useLatestSummary(today);
@@ -134,11 +90,12 @@ export default function AISummaryCard({ refreshTrigger = 0, onRefreshRef }) {
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
   const fetchedRef = useRef(false);
-  const prevSummaryRef = useRef(summary);
   const [segmentAnims, setSegmentAnims] = useState([]);
+  const prevAnimTriggerRef = useRef(animTrigger);
 
   const performRefresh = useCallback(() => {
     setLoading(true);
+    onLoadingChange?.(true);
     doFetchSummary({
       today,
       events,
@@ -148,8 +105,15 @@ export default function AISummaryCard({ refreshTrigger = 0, onRefreshRef }) {
       profile,
       dispatch,
       refresh: true,
-    }).finally(() => setLoading(false));
-  }, [today, events, journal, mood, waterEntries, profile, dispatch]);
+    })
+      .then(() => {
+        onFetchDone?.();
+      })
+      .finally(() => {
+        setLoading(false);
+        onLoadingChange?.(false);
+      });
+  }, [today, events, journal, mood, waterEntries, profile, dispatch, onFetchDone, onLoadingChange]);
 
   useEffect(() => {
     if (onRefreshRef) {
@@ -158,10 +122,14 @@ export default function AISummaryCard({ refreshTrigger = 0, onRefreshRef }) {
     }
   }, [onRefreshRef, performRefresh]);
 
-  // Initial fetch when we have data and no summary yet
+  // Initial fetch when we have data and no summary yet; re-runs when store hydrates
   useEffect(() => {
     if (fetchedRef.current) return;
-    if (summaryToday?.text) return;
+    if (summaryToday?.text) {
+      onFetchDone?.();
+      fetchedRef.current = true;
+      return;
+    }
     const hasData =
       events.length > 0 ||
       journal.length > 0 ||
@@ -170,6 +138,7 @@ export default function AISummaryCard({ refreshTrigger = 0, onRefreshRef }) {
     if (!hasData) return;
     fetchedRef.current = true;
     setLoading(true);
+    onLoadingChange?.(true);
     doFetchSummary({
       today,
       events,
@@ -179,9 +148,24 @@ export default function AISummaryCard({ refreshTrigger = 0, onRefreshRef }) {
       profile,
       dispatch,
       refresh: false,
-    }).finally(() => setLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    })
+      .then(() => {
+        onFetchDone?.();
+      })
+      .finally(() => {
+        setLoading(false);
+        onLoadingChange?.(false);
+      });
+  }, [
+    summaryToday?.text,
+    events.length,
+    journal.length,
+    waterEntries.length,
+    mood?.emotion,
+    mood?.intensity,
+    today,
+    onFetchDone,
+  ]);
 
   const handlePress = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -194,11 +178,11 @@ export default function AISummaryCard({ refreshTrigger = 0, onRefreshRef }) {
     : (summary && (summary.includes('balanced') ? 'balanced' : summary.includes('track') ? 'on track' : '')) || '';
   const segments = useMemo(() => getSegments(fullText, highlight), [fullText, highlight]);
 
-  // Blur-in-by-word when summary appears or changes
+  // Blur-in-by-word: triggered by animTrigger (same counter as mood/calories)
   useEffect(() => {
+    if (animTrigger === 0 || animTrigger === prevAnimTriggerRef.current) return;
+    prevAnimTriggerRef.current = animTrigger;
     if (!summary || segments.length === 0) return;
-    if (prevSummaryRef.current === summary) return;
-    prevSummaryRef.current = summary;
 
     const values = segments.map(() => ({
       opacity: new Animated.Value(0),
@@ -206,7 +190,7 @@ export default function AISummaryCard({ refreshTrigger = 0, onRefreshRef }) {
     }));
     setSegmentAnims(values);
 
-    const run = () => {
+    requestAnimationFrame(() => {
       values.forEach((v, i) => {
         Animated.sequence([
           Animated.delay(i * BLUR_IN_STAGGER_MS),
@@ -224,9 +208,8 @@ export default function AISummaryCard({ refreshTrigger = 0, onRefreshRef }) {
           ]),
         ]).start();
       });
-    };
-    requestAnimationFrame(run);
-  }, [summary, segments]);
+    });
+  }, [animTrigger, summary, segments]);
 
   if (loading && !summary) {
     return (
