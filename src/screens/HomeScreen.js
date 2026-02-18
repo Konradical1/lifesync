@@ -16,7 +16,17 @@ const REFRESH_ANIMATION_MS = 1500;
 export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [animTrigger, setAnimTrigger] = useState(0);
+  const [summaryLoading, setSummaryLoading] = useState(false);
   const summaryRefreshRef = useRef(null);
+
+  const onFetchDone = useCallback(() => {
+    setAnimTrigger((k) => k + 1);
+  }, []);
+
+  const onLoadingChange = useCallback((loading) => {
+    setSummaryLoading(!!loading);
+  }, []);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -38,28 +48,28 @@ export default function HomeScreen() {
     />
   );
 
-  const renderHeader = useCallback(() => (
+  const listHeader = (
     <>
       <View style={[styles.section, styles.sectionShaded]}>
-        <AISummaryCard refreshTrigger={refreshKey} onRefreshRef={summaryRefreshRef} />
+        <AISummaryCard onRefreshRef={summaryRefreshRef} onFetchDone={onFetchDone} onLoadingChange={onLoadingChange} animTrigger={animTrigger} />
       </View>
       <View style={styles.section}>
-        <MoodSelector refreshTrigger={refreshKey} />
+        <MoodSelector refreshTrigger={animTrigger} loading={summaryLoading} />
       </View>
       <View style={[styles.section, styles.sectionShaded]}>
         <JournalEntry />
       </View>
       <View style={styles.section}>
-        <CalorieProteinGoals />
+        <CalorieProteinGoals animTrigger={animTrigger} loading={summaryLoading} />
       </View>
       <View style={styles.section}>
-        <WaterTracker refreshTrigger={refreshKey} />
+        <WaterTracker refreshTrigger={refreshKey} loading={summaryLoading} />
       </View>
       <View style={styles.section}>
         <RecentEventsList />
       </View>
     </>
-  ), [refreshKey]);
+  );
 
   return (
     <ConfettiProvider>
@@ -72,7 +82,7 @@ export default function HomeScreen() {
           showsVerticalScrollIndicator={false}
           data={[]}
           renderItem={() => null}
-          ListHeaderComponent={renderHeader}
+          ListHeaderComponent={listHeader}
           refreshControl={refreshControl}
           alwaysBounceVertical={true}
           bounces={true}

@@ -6,13 +6,8 @@ import {
   Modal,
   StyleSheet,
   Pressable,
+  Animated,
 } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  interpolate,
-} from 'react-native-reanimated';
 import { useNavigation } from '@react-navigation/native';
 import Slider from '@react-native-community/slider';
 import * as Haptics from 'expo-haptics';
@@ -20,59 +15,76 @@ import { useStore, useMood } from '../../store/useStore';
 import { MOOD_OPTIONS, generateMoodId } from '../../store/mockData';
 import { addMinutesToTime } from '../../utils/time';
 import { colors, spacing, typography, borderRadius } from '../../theme/constants';
+import { SkeletonBar } from './SkeletonText';
 
-const REVEAL_DURATION_MS = 400;
-const REVEAL_STAGGER = 0.06;
+const MOOD_BLUR_OFFSET = 10;
+const MOOD_BLUR_DURATION = 380;
+const MOOD_BLUR_STAGGER_MS = 42;
 
-function RevealWord({ text, index, progress, style, addSpace }) {
-  const animatedStyle = useAnimatedStyle(() => {
-    const start = index * REVEAL_STAGGER;
-    const end = start + 0.25;
-    const opacity = interpolate(progress.value, [start, end], [0, 1], 'clamp');
-    const translateY = interpolate(progress.value, [start, end], [8, 0], 'clamp');
-    return { opacity, transform: [{ translateY }] };
-  });
-  return (
-    <Animated.Text style={[style, animatedStyle]}>
-      {text}{addSpace ? ' ' : ''}
-    </Animated.Text>
-  );
-}
-
-function TextReveal({ words, refreshTrigger, labelStyle, valueStyle }) {
-  const progress = useSharedValue(0);
-  const prevTrigger = useRef(refreshTrigger);
-  const hasAnimated = useRef(false);
+/** Blur-in-by-word animation for the mood value only (same as AI summary). Runs on refresh. */
+function MoodValueReveal({ moodText, refreshTrigger, valueStyle }) {
+  const words = (moodText || 'not set').split(/\s+/).filter(Boolean);
+  const [animValues, setAnimValues] = useState([]);
+  const prevTriggerRef = useRef(refreshTrigger);
+  const prevMoodTextRef = useRef(moodText);
+  const hasAnimatedRef = useRef(false);
 
   useEffect(() => {
-    const runReveal = () => {
-      progress.value = 0;
-      requestAnimationFrame(() => {
-        progress.value = withTiming(1, { duration: (REVEAL_DURATION_MS / 1000) * 1.4 });
+    const isRefresh = refreshTrigger != null && refreshTrigger > 0 && refreshTrigger !== prevTriggerRef.current;
+    const moodChanged = moodText !== prevMoodTextRef.current;
+    if (refreshTrigger != null && refreshTrigger > 0) prevTriggerRef.current = refreshTrigger;
+    if (moodChanged) prevMoodTextRef.current = moodText;
+    const shouldRun = isRefresh || moodChanged || !hasAnimatedRef.current;
+    if (!shouldRun) return;
+
+    hasAnimatedRef.current = true;
+    const values = words.map(() => ({
+      opacity: new Animated.Value(0),
+      translateY: new Animated.Value(MOOD_BLUR_OFFSET),
+    }));
+    setAnimValues(values);
+
+    const run = () => {
+      values.forEach((v, i) => {
+        Animated.sequence([
+          Animated.delay(i * MOOD_BLUR_STAGGER_MS),
+          Animated.parallel([
+            Animated.timing(v.opacity, {
+              toValue: 1,
+              duration: MOOD_BLUR_DURATION,
+              useNativeDriver: true,
+            }),
+            Animated.timing(v.translateY, {
+              toValue: 0,
+              duration: MOOD_BLUR_DURATION,
+              useNativeDriver: true,
+            }),
+          ]),
+        ]).start();
       });
     };
-    if (refreshTrigger != null && refreshTrigger > 0 && refreshTrigger !== prevTrigger.current) {
-      prevTrigger.current = refreshTrigger;
-      runReveal();
-    } else if (!hasAnimated.current) {
-      hasAnimated.current = true;
-      runReveal();
-    } else {
-      progress.value = 1;
-    }
-  }, [refreshTrigger, progress]);
+    requestAnimationFrame(run);
+  }, [refreshTrigger, moodText]);
+
+  if (animValues.length !== words.length) {
+    return <Text style={valueStyle}>{moodText || 'not set'}</Text>;
+  }
 
   return (
-    <View style={styles.revealRow}>
+    <View style={styles.moodValueRow}>
       {words.map((word, i) => (
-        <RevealWord
-          key={i}
-          text={word.text}
-          index={i}
-          progress={progress}
-          style={word.isValue ? valueStyle : labelStyle}
-          addSpace={i < words.length - 1}
-        />
+        <Animated.Text
+          key={`${i}-${word}`}
+          style={[
+            valueStyle,
+            {
+              opacity: animValues[i].opacity,
+              transform: [{ translateY: animValues[i].translateY }],
+            },
+          ]}
+        >
+          {word}{i < words.length - 1 ? ' ' : ''}
+        </Animated.Text>
       ))}
     </View>
   );
@@ -93,7 +105,7 @@ function getMoodColor(id) {
   return MOOD_OPTIONS.find((m) => m.id === id)?.color ?? colors.textSecondary;
 }
 
-export default function MoodSelector({ refreshTrigger }) {
+export default function MoodSelector({ refreshTrigger, loading = false }) {
   const today = formatDateKey(new Date());
   const saved = useMood(today);
   const { dispatch } = useStore();
@@ -141,23 +153,22 @@ export default function MoodSelector({ refreshTrigger }) {
   };
 
   const currentLabel = saved ? getMoodLabel(saved.emotion) : null;
-  const moodWords = [
-    { text: 'Your', isValue: false },
-    { text: 'current', isValue: false },
-    { text: 'mood', isValue: false },
-    { text: 'is', isValue: false },
-    { text: currentLabel ?? 'not set', isValue: true },
-  ];
 
   return (
     <View style={styles.container}>
       <View style={styles.displayRow}>
-        <TextReveal
-          words={moodWords}
-          refreshTrigger={refreshTrigger}
-          labelStyle={styles.label}
-          valueStyle={[styles.moodValue, { color: saved ? getMoodColor(saved.emotion) : colors.textSecondary }]}
-        />
+        <View style={styles.revealRow}>
+          <Text style={styles.label}>Your current mood is </Text>
+          {loading ? (
+            <SkeletonBar width="38%" />
+          ) : (
+            <MoodValueReveal
+              moodText={currentLabel ?? 'not set'}
+              refreshTrigger={refreshTrigger}
+              valueStyle={[styles.moodValue, { color: saved ? getMoodColor(saved.emotion) : colors.textSecondary }]}
+            />
+          )}
+        </View>
         <View style={styles.buttonRow}>
           <TouchableOpacity
             style={styles.editHistoryButton}
@@ -294,6 +305,10 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     flex: 1,
     alignItems: 'center',
+  },
+  moodValueRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
   },
   label: {
     fontSize: typography.body.fontSize,

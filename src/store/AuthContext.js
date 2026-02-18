@@ -9,7 +9,7 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!isSupabaseConfigured()) {
+    if (!isSupabaseConfigured() || !supabase) {
       setLoading(false);
       return;
     }
@@ -31,6 +31,9 @@ export function AuthProvider({ children }) {
   }, []);
 
   async function signIn(email, password) {
+    if (!supabase) {
+      throw new Error('App is not configured for cloud sync. Please set Supabase URL and key in your environment.');
+    }
     const { data, error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
@@ -40,6 +43,9 @@ export function AuthProvider({ children }) {
   }
 
   async function signUp(email, password, username) {
+    if (!supabase) {
+      throw new Error('App is not configured for cloud sync. Please set Supabase URL and key in your environment.');
+    }
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
@@ -52,6 +58,7 @@ export function AuthProvider({ children }) {
   }
 
   async function signOut() {
+    if (!supabase) return;
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
   }

@@ -24,6 +24,7 @@ import { useStore } from '../../store/useStore';
 import { useTodayWaterOz } from '../../store/useStore';
 import { getTimeNow24h } from '../../utils/time';
 import { colors, spacing, typography, borderRadius } from '../../theme/constants';
+import { SkeletonBar, SkeletonLines } from './SkeletonText';
 
 const OZ_OPTIONS = [16, 24, 32];
 const STROKE_RATIO = 0.08;
@@ -153,7 +154,7 @@ function AnimatedNumberTicker({ value, refreshTrigger, style }) {
   return <Text style={style}>{display}</Text>;
 }
 
-export default function WaterTracker({ refreshTrigger }) {
+export default function WaterTracker({ refreshTrigger, loading = false }) {
   const { width } = useWindowDimensions();
   const navigation = useNavigation();
   const { state, dispatch } = useStore();
@@ -194,6 +195,34 @@ export default function WaterTracker({ refreshTrigger }) {
     },
     [selectedOz, dispatch, fireConfetti]
   );
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.card}>
+          <View style={styles.row}>
+            <View style={[styles.leftColumn, { maxWidth: leftWidth }]}>
+              <SkeletonLines widths={['70%', '70%', '50%']} gap={10} />
+              <View style={styles.skeletonButtonWrap}>
+                <SkeletonBar width="100%" />
+              </View>
+              <View style={styles.skeletonHistoryWrap}>
+                <SkeletonBar width="50%" />
+              </View>
+            </View>
+            <View style={[styles.ringWrap, { width: ringSize, height: ringSize }]}>
+              <RadialProgress size={ringSize} progress={0} color={colors.water} resetTrigger={0} />
+              <View style={styles.ringCenter}>
+                <SkeletonBar width={40} />
+                <SkeletonBar width={24} style={{ marginTop: 4 }} />
+                <SkeletonBar width={36} style={{ marginTop: 2 }} />
+              </View>
+            </View>
+          </View>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -288,6 +317,12 @@ const styles = StyleSheet.create({
   selectorTextSelected: {
     color: colors.water,
     fontWeight: '600',
+  },
+  skeletonButtonWrap: {
+    marginBottom: spacing.sm,
+  },
+  skeletonHistoryWrap: {
+    marginTop: spacing.xs,
   },
   button: {
     backgroundColor: colors.water,

@@ -5,18 +5,20 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MODEL = "openai/gpt-4.1-mini";
 const TIMEOUT_MS = 10000;
 
-const SYSTEM = `You are a supportive wellness assistant. You will receive the time of day, the user's first name (if provided), and the day's data: events (food, sleep, exercise, meds, etc.), journal entries, mood, and water intake. Use ALL of this data to personalize the summary.
+const SYSTEM = `You are a supportive, honest wellness assistant. You receive: time of day, the user's first name (if provided), the day's data (events: food, sleep, exercise, meds, etc.; journal; mood; water intake), and profile goals (e.g. water oz, calories, protein). Use ALL of this data to personalize the summary. Be helpful, not just hopeful: give one genuine positive and one concrete improvement when the data supports it.
 
 Your reply must be valid JSON only, no other text:
 {"summary": "...", "highlight": "oneword"}
 
 Rules for "summary":
-- Start with a short, time-based greeting. If name is given: "Good morning, Alex." or "Good afternoon, Sarah!" or "Good evening, Jamie." If no name: "Good morning." or a fun time-based line.
-- After the greeting, add exactly ONE short sentence that reflects their actual day (OR HOW THEIR DAY IS GOING): mention food/sleep/water/mood/exercise if they logged any (e.g. "Nice cereal and oatmeal for breakfast and solid hydration." or "You logged sleep, mood, and water keep it up."). If there's little or no data, say one encouraging line like "Start logging to see your day summary."
-- Stay positive. Total summary around 35 words. No bullet points or em dashes.
+- Start with a short, time-based greeting. If name is given: "Good morning, Alex." or "Good afternoon, Sarah!" If no name: "Good morning." or a brief time-based line.
+- Then write exactly TWO short sentences:
+  1. One sentence of good: something they did well or that's on track based on real data (e.g. "You logged breakfast and your mood." or "Sleep and exercise look solid."). If there's little data, acknowledge what they did log or that they're checking in.
+  2. One sentence of improvement: one specific, actionable suggestion based on the data. Be intelligent: compare intake to goals and time of day. Examples: if water is low for the time of day vs their daily goal, say "Try to drink more water to hit your goal." If they haven't logged much, "Log a meal or some water to get a fuller picture." If mood is low, a gentle nudge (e.g. "A short walk might help."). Never say something is "on track" when the numbers clearly show they're behind (e.g. 16 oz with a 120 oz goal halfway through the day = suggest drinking more).
+- Tone: warm and supportive but honest. Total summary around 45–55 words. No bullet points or em dashes.
 
 Rules for "highlight":
-- Pick exactly one word from your summary (the body sentence, not the greeting) to emphasize. Return that word in "highlight".`;
+- Pick exactly one word from your summary (from the two body sentences, not the greeting) to emphasize. Return that word in "highlight".`;
 
 type SummaryShortBody = {
   date?: string;
@@ -82,11 +84,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const p = profile as Record<string, unknown>;
     if (p.calorieGoal != null && String(p.calorieGoal).trim()) profileParts.push(`Daily calorie goal: ${String(p.calorieGoal).trim()}`);
     if (p.proteinGoal != null && String(p.proteinGoal).trim()) profileParts.push(`Daily protein goal (g): ${String(p.proteinGoal).trim()}`);
+    if (p.waterGoalOz != null && String(p.waterGoalOz).trim()) profileParts.push(`Daily water goal (oz): ${String(p.waterGoalOz).trim()}`);
   }
   const profileText = profileParts.length > 0 ? `Profile: ${profileParts.join(", ")}` : "";
 
   const refreshHint = refresh ? "\nThe user is refreshing — give a different greeting or phrasing this time (vary the angle or wording). " : "";
-  const userContent = `Time of day: ${timeOfDay}.${firstName ? ` User's first name: ${firstName}.` : ""}\nDate: ${dateStr || "Today"}${refreshHint}\n${profileText ? `${profileText}\n` : ""}\nEvents (food, sleep, exercise, meds, etc.):\n${eventsText}\n\nJournal:\n${journalText}\n\n${moodText}\n${waterText}\n\nUse the data above to write one short personalized sentence. Reply with JSON only: {"summary": "Your greeting + one short sentence", "highlight": "oneword"}.`;
+  const userContent = `Time of day: ${timeOfDay}.${firstName ? ` User's first name: ${firstName}.` : ""}\nDate: ${dateStr || "Today"}${refreshHint}\n${profileText ? `${profileText}\n` : ""}\nEvents (food, sleep, exercise, meds, etc.):\n${eventsText}\n\nJournal:\n${journalText}\n\n${moodText}\n${waterText}\n\nUse the data above: greeting, then one sentence of good and one sentence of improvement (compare water/calories/protein to goals and time of day where relevant). Reply with JSON only: {"summary": "Greeting. Good sentence. Improvement sentence.", "highlight": "oneword"}.`;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);

@@ -1,17 +1,46 @@
-import React from 'react';
-import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, useWindowDimensions, Animated as RNAnimated } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { useStore } from '../../store/useStore';
 import { useTodayCaloriesAndProtein } from '../../store/useStore';
 import { colors, spacing, typography, borderRadius } from '../../theme/constants';
+import { SkeletonBar, SkeletonLines } from './SkeletonText';
 
 const STROKE_RATIO = 0.08;
+const ANIM_DURATION = 800;
 
-function RadialProgress({ size, progress, color }) {
+const AnimatedCircle = RNAnimated.createAnimatedComponent(Circle);
+
+function AnimatedRadialProgress({ size, progress, color, animTrigger }) {
   const stroke = Math.max(10, size * STROKE_RATIO);
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference * (1 - Math.min(1, Math.max(0, progress)));
+
+  const animVal = useRef(new RNAnimated.Value(0)).current;
+  const prevTriggerRef = useRef(animTrigger);
+  const hasAnimatedRef = useRef(false);
+
+  useEffect(() => {
+    const isTriggered = animTrigger > 0 && animTrigger !== prevTriggerRef.current;
+    if (animTrigger > 0) prevTriggerRef.current = animTrigger;
+    const shouldRun = isTriggered || !hasAnimatedRef.current;
+    if (!shouldRun) return;
+    hasAnimatedRef.current = true;
+
+    animVal.setValue(0);
+    RNAnimated.timing(animVal, {
+      toValue: progress,
+      duration: ANIM_DURATION,
+      useNativeDriver: false,
+    }).start();
+  }, [animTrigger, progress, animVal]);
+
+  const strokeDashoffset = animVal.interpolate({
+    inputRange: [0, 1],
+    outputRange: [circumference, 0],
+    extrapolate: 'clamp',
+  });
+
   return (
     <Svg width={size} height={size} style={styles.svg}>
       <Circle
@@ -22,7 +51,7 @@ function RadialProgress({ size, progress, color }) {
         strokeWidth={stroke}
         fill="transparent"
       />
-      <Circle
+      <AnimatedCircle
         cx={size / 2}
         cy={size / 2}
         r={radius}
@@ -38,7 +67,41 @@ function RadialProgress({ size, progress, color }) {
   );
 }
 
-export default function CalorieProteinGoals() {
+function NumberTicker({ value, animTrigger, style }) {
+  const animVal = useRef(new RNAnimated.Value(0)).current;
+  const [display, setDisplay] = useState(value);
+  const prevTriggerRef = useRef(animTrigger);
+  const hasAnimatedRef = useRef(false);
+
+  useEffect(() => {
+    const isTriggered = animTrigger > 0 && animTrigger !== prevTriggerRef.current;
+    if (animTrigger > 0) prevTriggerRef.current = animTrigger;
+    const shouldRun = isTriggered || !hasAnimatedRef.current;
+    if (!shouldRun) {
+      setDisplay(value);
+      return;
+    }
+    hasAnimatedRef.current = true;
+
+    animVal.setValue(0);
+    const listener = animVal.addListener(({ value: v }) => {
+      setDisplay(Math.round(v));
+    });
+    RNAnimated.timing(animVal, {
+      toValue: value,
+      duration: ANIM_DURATION,
+      useNativeDriver: false,
+    }).start(() => {
+      setDisplay(value);
+    });
+
+    return () => animVal.removeListener(listener);
+  }, [animTrigger, value, animVal]);
+
+  return <Text style={style}>{display}</Text>;
+}
+
+export default function CalorieProteinGoals({ animTrigger = 0, loading = false }) {
   const { width } = useWindowDimensions();
   const { state } = useStore();
   const { calories, protein } = useTodayCaloriesAndProtein();
@@ -53,21 +116,72 @@ export default function CalorieProteinGoals() {
   const gap = spacing.md;
   const ringSize = Math.floor(((width - horizontalPadding - gap) / 2) * 0.82);
 
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.card}>
+          <View style={styles.row}>
+            <View style={[styles.ringWrap, { width: ringSize, height: ringSize }]}>
+              <Svg width={ringSize} height={ringSize} style={styles.svg}>
+                <Circle
+                  cx={ringSize / 2}
+                  cy={ringSize / 2}
+                  r={(ringSize - Math.max(10, ringSize * 0.08)) / 2}
+                  stroke={colors.surfaceElevated}
+                  strokeWidth={Math.max(10, ringSize * 0.08)}
+                  fill="transparent"
+                />
+              </Svg>
+              <View style={styles.ringCenter}>
+                <SkeletonBar width={48} style={styles.skeletonNumber} />
+                <SkeletonBar width={28} style={[styles.skeletonUnit, { marginTop: 4 }]} />
+              </View>
+            </View>
+            <View style={[styles.ringWrap, { width: ringSize, height: ringSize }]}>
+              <Svg width={ringSize} height={ringSize} style={styles.svg}>
+                <Circle
+                  cx={ringSize / 2}
+                  cy={ringSize / 2}
+                  r={(ringSize - Math.max(10, ringSize * 0.08)) / 2}
+                  stroke={colors.surfaceElevated}
+                  strokeWidth={Math.max(10, ringSize * 0.08)}
+                  fill="transparent"
+                />
+              </Svg>
+              <View style={styles.ringCenter}>
+                <SkeletonBar width={40} style={styles.skeletonNumber} />
+                <SkeletonBar width={16} style={[styles.skeletonUnit, { marginTop: 4 }]} />
+              </View>
+            </View>
+          </View>
+          <View style={styles.labels}>
+            <View style={[styles.labelWrap, { width: ringSize }]}>
+              <SkeletonLines widths={['85%']} gap={6} />
+            </View>
+            <View style={[styles.labelWrap, { width: ringSize }]}>
+              <SkeletonLines widths={['80%']} gap={6} />
+            </View>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.card}>
         <View style={styles.row}>
           <View style={[styles.ringWrap, { width: ringSize, height: ringSize }]}>
-            <RadialProgress size={ringSize} progress={calorieProgress} color={colors.eventFood} />
+            <AnimatedRadialProgress size={ringSize} progress={calorieProgress} color={colors.eventFood} animTrigger={animTrigger} />
             <View style={styles.ringCenter}>
-              <Text style={styles.ringValue}>{calories}</Text>
+              <NumberTicker value={calories} animTrigger={animTrigger} style={styles.ringValue} />
               <Text style={styles.ringUnit}>cal</Text>
             </View>
           </View>
           <View style={[styles.ringWrap, { width: ringSize, height: ringSize }]}>
-            <RadialProgress size={ringSize} progress={proteinProgress} color={colors.eventExercise} />
+            <AnimatedRadialProgress size={ringSize} progress={proteinProgress} color={colors.eventExercise} animTrigger={animTrigger} />
             <View style={styles.ringCenter}>
-              <Text style={styles.ringValue}>{protein}</Text>
+              <NumberTicker value={protein} animTrigger={animTrigger} style={styles.ringValue} />
               <Text style={styles.ringUnit}>g</Text>
             </View>
           </View>
@@ -118,6 +232,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  skeletonNumber: {
+    alignSelf: 'center',
+  },
+  skeletonUnit: {
+    alignSelf: 'center',
   },
   ringValue: {
     fontSize: typography.title1.fontSize,
