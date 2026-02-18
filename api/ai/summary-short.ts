@@ -5,26 +5,27 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MODEL = "openai/gpt-4.1-mini";
 const TIMEOUT_MS = 10000;
 
-const SYSTEM = `You are a supportive wellness assistant. You will receive the time of day (morning/afternoon/evening), the user's first name (if provided), and the day's logged events, journal, and mood.
+const SYSTEM = `You are a supportive wellness assistant. You will receive the time of day, the user's first name (if provided), and the day's data: events (food, sleep, exercise, meds, etc.), journal entries, mood, and water intake. Use ALL of this data to personalize the summary.
 
 Your reply must be valid JSON only, no other text:
 {"summary": "...", "highlight": "oneword"}
 
 Rules for "summary":
-- Start with a short, time-based greeting. If name is given: "Good morning, Alex." or "Hey Sarah, afternoon vibes —" or "Good evening, Jamie." If no name: "Good morning." or a fun time-based line like "Rise and shine." / "Afternoon check-in." / "Evening wrap-up."
-- After the greeting, add exactly ONE short encouraging sentence about their day (e.g. "You're on track today." or "Solid logging — keep it up."). If there's little or no data, say one encouraging line like "Start logging to see your day summary."
-- Stay positive. Total summary under 25 words.
-- No bullet points, no multiple sentences beyond greeting + one line.
+- Start with a short, time-based greeting. If name is given: "Good morning, Alex." or "Good afternoon, Sarah!" or "Good evening, Jamie." If no name: "Good morning." or a fun time-based line.
+- After the greeting, add exactly ONE short sentence that reflects their actual day: mention food/sleep/water/mood/exercise if they logged any (e.g. "Nice breakfast and solid hydration." or "You logged sleep, mood, and water — keep it up."). If there's little or no data, say one encouraging line like "Start logging to see your day summary."
+- Stay positive. Total summary under 25 words. No bullet points.
 
 Rules for "highlight":
-- Pick exactly one word from your summary (the body sentence, not the greeting) to emphasize. Use a single word that carries the message (e.g. "on track", "balanced", "crushing", "start"). Return that one word in "highlight".`;
+- Pick exactly one word from your summary (the body sentence, not the greeting) to emphasize. Return that word in "highlight".`;
 
 type SummaryShortBody = {
   date?: string;
   events?: unknown[];
   journal?: unknown[];
   mood?: { emotion?: string; intensity?: string | number };
+  waterEntries?: Array<{ date?: string; time?: string; oz?: number }>;
   profile?: Record<string, unknown>;
+  refresh?: boolean;
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -38,7 +39,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const body = (req.body ?? {}) as SummaryShortBody;
-  const { date, events = [], journal = [], mood, profile } = body;
+  const { date, events = [], journal = [], mood, waterEntries = [], profile, refresh } = body;
   const dateStr = typeof date === "string" ? date : "";
 
   const hour = new Date().getHours();
@@ -65,6 +66,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ? `Mood: ${mood.emotion ?? "—"}, intensity ${mood.intensity ?? "—"}`
       : "No mood logged.";
 
+  const waterList = Array.isArray(waterEntries) ? waterEntries : [];
+  const waterTotalOz = waterList.reduce((sum, w) => sum + (Number((w as { oz?: number }).oz) || 0), 0);
+  const waterText =
+    waterList.length > 0
+      ? `Water: ${waterTotalOz} oz total today (${waterList.length} log${waterList.length === 1 ? "" : "s"})`
+      : "No water logged today.";
+
   const profileParts: string[] = [];
   if (profile && typeof profile === "object") {
     const p = profile as Record<string, unknown>;
@@ -73,7 +81,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
   const profileText = profileParts.length > 0 ? `Profile: ${profileParts.join(", ")}` : "";
 
-  const userContent = `Time of day: ${timeOfDay}.${firstName ? ` User's first name: ${firstName}.` : ""}\nDate: ${dateStr || "Today"}\n${profileText ? `${profileText}\n` : ""}\nEvents:\n${eventsText}\n\nJournal:\n${journalText}\n\n${moodText}\n\nReply with JSON only: {"summary": "Your greeting + one short sentence", "highlight": "oneword"}.`;
+  const refreshHint = refresh ? "\nThe user is refreshing — give a different greeting or phrasing this time (vary the angle or wording). " : "";
+  const userContent = `Time of day: ${timeOfDay}.${firstName ? ` User's first name: ${firstName}.` : ""}\nDate: ${dateStr || "Today"}${refreshHint}\n${profileText ? `${profileText}\n` : ""}\nEvents (food, sleep, exercise, meds, etc.):\n${eventsText}\n\nJournal:\n${journalText}\n\n${moodText}\n${waterText}\n\nUse the data above to write one short personalized sentence. Reply with JSON only: {"summary": "Your greeting + one short sentence", "highlight": "oneword"}.`;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);

@@ -10,6 +10,8 @@ import {
   Inter_500Medium,
   Inter_600SemiBold,
   Inter_700Bold,
+  Inter_500Medium_Italic,
+  Inter_600SemiBold_Italic,
 } from '@expo-google-fonts/inter';
 import { colors } from './src/theme/constants';
 import { AuthProvider, useAuth } from './src/store/AuthContext';
@@ -58,6 +60,8 @@ export default function App() {
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
+    Inter_500Medium_Italic,
+    Inter_600SemiBold_Italic,
   });
 
   if (!fontsLoaded) {

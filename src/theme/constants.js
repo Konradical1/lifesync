@@ -49,12 +49,16 @@ export const fontFamily = 'Inter_400Regular';
 export const fontFamilyMedium = 'Inter_500Medium';
 export const fontFamilySemiBold = 'Inter_600SemiBold';
 export const fontFamilyBold = 'Inter_700Bold';
+export const fontFamilyMediumItalic = 'Inter_500Medium_Italic';
+export const fontFamilySemiBoldItalic = 'Inter_600SemiBold_Italic';
 
 export const typography = {
   fontFamily,
   fontFamilyMedium,
   fontFamilySemiBold,
   fontFamilyBold,
+  fontFamilyMediumItalic,
+  fontFamilySemiBoldItalic,
   largeTitle: { fontSize: 34, fontWeight: '700', fontFamily: 'Inter_700Bold' },
   title1: { fontSize: 28, fontWeight: '700', fontFamily: 'Inter_700Bold' },
   title2: { fontSize: 22, fontWeight: '700', fontFamily: 'Inter_700Bold' },

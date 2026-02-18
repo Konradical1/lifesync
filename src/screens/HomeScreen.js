@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { FlatList, View, Text, StyleSheet, RefreshControl, Platform } from 'react-native';
 import { ConfettiProvider } from '../components/ConfettiProvider';
 import Header from '../components/Home/Header';
@@ -16,9 +16,11 @@ const REFRESH_ANIMATION_MS = 1500;
 export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const summaryRefreshRef = useRef(null);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
+    summaryRefreshRef.current?.();
     setRefreshKey((k) => k + 1);
     setTimeout(() => setRefreshing(false), REFRESH_ANIMATION_MS);
   }, []);
@@ -39,7 +41,7 @@ export default function HomeScreen() {
   const renderHeader = useCallback(() => (
     <>
       <View style={[styles.section, styles.sectionShaded]}>
-        <AISummaryCard refreshTrigger={refreshKey} />
+        <AISummaryCard refreshTrigger={refreshKey} onRefreshRef={summaryRefreshRef} />
       </View>
       <View style={styles.section}>
         <MoodSelector refreshTrigger={refreshKey} />

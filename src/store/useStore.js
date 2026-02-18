@@ -32,18 +32,33 @@ const initialState = {
 
 function storeReducer(state, action) {
   switch (action.type) {
-    case 'HYDRATE':
+    case 'HYDRATE': {
+      const incomingSummaries = action.payload.summaries;
+      let summaries = state.summaries;
+      if (incomingSummaries && typeof incomingSummaries === 'object') {
+        summaries = { ...state.summaries };
+        for (const date of Object.keys(incomingSummaries)) {
+          const inc = incomingSummaries[date];
+          const cur = state.summaries[date];
+          const incUpdated = inc?.updatedAt ?? inc?.createdAt ?? '';
+          const curUpdated = cur?.updatedAt ?? cur?.createdAt ?? '';
+          if (!cur || (incUpdated && curUpdated && incUpdated > curUpdated)) {
+            summaries[date] = inc;
+          }
+        }
+      }
       return {
         ...state,
         events: action.payload.events ?? state.events,
         journal: action.payload.journal ?? state.journal,
-        summaries: action.payload.summaries ?? state.summaries,
+        summaries,
         moodEntries: action.payload.moodEntries ?? state.moodEntries,
         insights: action.payload.insights ?? state.insights,
         profile: action.payload.profile != null ? { ...state.profile, ...action.payload.profile } : state.profile,
         waterEntries: action.payload.waterEntries ?? state.waterEntries,
         loading: false,
       };
+    }
     case 'SET_LOADING':
       return { ...state, loading: action.payload };
     case 'ADD_EVENT':
