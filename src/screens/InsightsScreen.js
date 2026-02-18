@@ -138,8 +138,10 @@ export default function InsightsScreen() {
       />
       <InsightCard
         title="Sleep patterns"
-        body={`You have logged ${sleepCount} sleep entries. Regular sleep tracking helps identify trends.`}
-        highlight="Regular sleep tracking"
+        body={sleepCount === 0
+          ? 'Log your sleep to see patterns and trends here.'
+          : `You have logged ${sleepCount} sleep ${sleepCount === 1 ? 'entry' : 'entries'}. Regular sleep tracking helps identify trends.`}
+        highlight={sleepCount > 0 ? 'Regular sleep tracking' : 'Log your sleep'}
       />
       <InsightCard
         title="Nutrition"

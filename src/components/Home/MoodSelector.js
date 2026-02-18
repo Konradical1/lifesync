@@ -158,7 +158,7 @@ export default function MoodSelector({ refreshTrigger, loading = false }) {
     <View style={styles.container}>
       <View style={styles.displayRow}>
         <View style={styles.revealRow}>
-          <Text style={styles.label}>Your current mood is </Text>
+          <Text style={styles.label}>Your current mood is</Text>
           {loading ? (
             <SkeletonBar width="38%" />
           ) : (
@@ -301,10 +301,9 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
   },
   revealRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: 'column',
     flex: 1,
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   moodValueRow: {
     flexDirection: 'row',

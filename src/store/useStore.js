@@ -47,9 +47,18 @@ function storeReducer(state, action) {
           }
         }
       }
+      // Merge events: keep server list but add any local events not yet on server (e.g. sleep just added)
+      // so we don't overwrite and lose them when Supabase load completes after user action.
+      let events = action.payload.events ?? state.events;
+      if (action.payload.events && state.events.length > 0) {
+        const serverIds = new Set(action.payload.events.map((e) => e.id));
+        const localOnly = state.events.filter((e) => !serverIds.has(e.id));
+        events = [...action.payload.events, ...localOnly];
+      }
+
       return {
         ...state,
-        events: action.payload.events ?? state.events,
+        events,
         journal: action.payload.journal ?? state.journal,
         summaries,
         moodEntries: action.payload.moodEntries ?? state.moodEntries,

@@ -72,9 +72,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   for (const e of events) {
     const d = e.date ?? "unknown";
     if (!eventsByDate[d]) eventsByDate[d] = [];
-    eventsByDate[d].push(
-      `${e.type}: ${e.description ?? e.name ?? e.note ?? ""} ${e.time ?? ""} ${e.duration ? e.duration + " min" : ""} ${e.calories != null ? e.calories + " cal" : ""}`.trim()
-    );
+    let line: string;
+    if (e.type === "sleep" && (e.startTime != null || e.endTime != null)) {
+      const start = (e as { startTime?: string }).startTime ?? "—";
+      const end = (e as { endTime?: string }).endTime ?? "—";
+      line = `sleep: ${start}–${end}`;
+    } else {
+      line = `${e.type}: ${e.description ?? e.name ?? e.note ?? ""} ${e.time ?? ""} ${e.duration ? e.duration + " min" : ""} ${e.calories != null ? e.calories + " cal" : ""}`.trim();
+    }
+    eventsByDate[d].push(line);
   }
   const eventsText =
     Object.keys(eventsByDate).length > 0

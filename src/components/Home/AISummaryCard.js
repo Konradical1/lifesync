@@ -226,40 +226,49 @@ export default function AISummaryCard({ onRefreshRef, onFetchDone, onLoadingChan
 
   return (
     <View style={styles.wrap}>
-      <TouchableOpacity
-        activeOpacity={0.9}
-        onPress={handlePress}
-        style={[styles.card, expanded && styles.cardExpanded]}
-      >
-        <Text style={styles.label}><Text style={styles.labelAccent}>AI</Text> SUMMARY</Text>
-        {showBlurIn ? (
-          <View style={[styles.summaryRow, !expanded && styles.summaryRowCollapsed]}>
-            {segments.map((seg, i) => (
-              <Animated.Text
-                key={`${i}-${seg.text}`}
-                style={[
-                  styles.text,
-                  seg.isHighlight && styles.highlight,
-                  {
-                    opacity: segmentAnims[i].opacity,
-                    transform: [{ translateY: segmentAnims[i].translateY }],
-                  },
-                ]}
-              >
-                {seg.text}{i < segments.length - 1 ? ' ' : ''}
-              </Animated.Text>
-            ))}
+      <TouchableOpacity activeOpacity={0.9} onPress={handlePress} style={styles.touchable}>
+        <View style={[styles.card, expanded && styles.cardExpanded]}>
+          <Text style={styles.label}><Text style={styles.labelAccent}>AI</Text> SUMMARY</Text>
+          <View style={styles.summaryContainer}>
+            {showBlurIn ? (
+              <View style={[styles.summaryRow, !expanded && styles.summaryRowCollapsed]}>
+                {segments.map((seg, i) => (
+                  <Animated.Text
+                    key={`${i}-${seg.text}`}
+                    style={[
+                      styles.text,
+                      seg.isHighlight && styles.highlight,
+                      {
+                        opacity: segmentAnims[i].opacity,
+                        transform: [{ translateY: segmentAnims[i].translateY }],
+                      },
+                    ]}
+                  >
+                    {seg.text}{i < segments.length - 1 ? ' ' : ''}
+                  </Animated.Text>
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.text} numberOfLines={expanded ? undefined : 3} ellipsizeMode="tail">
+                {fullText}
+              </Text>
+            )}
+            {!expanded && showBlurIn && (
+              <Text style={styles.ellipsisInSummary}>…</Text>
+            )}
           </View>
-        ) : (
-          <Text style={styles.text} numberOfLines={expanded ? undefined : 3}>
-            {fullText}
-          </Text>
+          {loading ? (
+            <View style={styles.inlineLoader}>
+              <ActivityIndicator size="small" color={colors.accent} />
+            </View>
+          ) : null}
+        </View>
+        {!expanded && (
+          <Text style={styles.readMore}>Tap to read more</Text>
         )}
-        {loading ? (
-          <View style={styles.inlineLoader}>
-            <ActivityIndicator size="small" color={colors.accent} />
-          </View>
-        ) : null}
+        {expanded && (
+          <Text style={styles.readMore}>Tap to show less</Text>
+        )}
       </TouchableOpacity>
     </View>
   );
@@ -270,6 +279,7 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.md,
     marginBottom: spacing.md,
   },
+  touchable: {},
   card: {
     padding: spacing.md,
     paddingTop: spacing.xs,
@@ -295,6 +305,9 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: spacing.sm,
   },
+  summaryContainer: {
+    position: 'relative',
+  },
   summaryRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -303,6 +316,15 @@ const styles = StyleSheet.create({
   summaryRowCollapsed: {
     maxHeight: 26 * 3,
     overflow: 'hidden',
+  },
+  ellipsisInSummary: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    fontSize: typography.body.fontSize,
+    fontFamily: typography.fontFamilyMediumItalic,
+    color: colors.textPrimary,
+    lineHeight: 26,
   },
   text: {
     fontSize: typography.body.fontSize,
@@ -313,6 +335,12 @@ const styles = StyleSheet.create({
   highlight: {
     color: colors.accent,
     fontFamily: typography.fontFamilySemiBoldItalic,
+  },
+  readMore: {
+    ...typography.footnote,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+    alignSelf: 'flex-end',
   },
   inlineLoader: {
     marginTop: spacing.sm,
