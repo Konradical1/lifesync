@@ -48,7 +48,7 @@ export default function InsightsScreen() {
   const fetchInsights = () => {
     setAiError(null);
     setAiLoading(true);
-    getInsights({ events: recentEvents, journal: recentJournal, moods })
+    getInsights({ events: recentEvents, journal: recentJournal, moods, today })
       .then((result) => {
         if (result.ok) {
           dispatch({

@@ -47,28 +47,57 @@ function stripIconFromHeader(str) {
   return { iconName: null, text: str };
 }
 
-function renderInlineSegments(segments, keyPrefix) {
+/** One Text with nested Text for bold/italic/blue so they stay inline (no extra line breaks). */
+function renderTextRun(segments, keyPrefix, baseStyle) {
   return (
-    <View key={keyPrefix} style={styles.inlineRow}>
+    <Text key={keyPrefix} style={baseStyle}>
       {segments.map((s, i) => {
-        if (s.type === 'icon') {
-          const icon = ICON_MAP[s.name] || 'ellipse-outline';
-          return (
-            <Ionicons
-              key={`${keyPrefix}-${i}`}
-              name={icon}
-              size={16}
-              color={colors.textSecondary}
-              style={styles.inlineIcon}
-            />
-          );
-        }
         if (s.type === 'normal') return <Text key={`${keyPrefix}-${i}`} style={styles.body}>{s.text}</Text>;
         if (s.type === 'bold') return <Text key={`${keyPrefix}-${i}`} style={styles.bold}>{s.text}</Text>;
         if (s.type === 'italic') return <Text key={`${keyPrefix}-${i}`} style={styles.italic}>{s.text}</Text>;
         if (s.type === 'blue') return <Text key={`${keyPrefix}-${i}`} style={styles.highlight}>{s.text}</Text>;
         return null;
       })}
+    </Text>
+  );
+}
+
+/** Render segments inline: icons in a row, text runs as single Text so bold/italic/blue don't create new lines. */
+function renderInlineSegments(segments, keyPrefix) {
+  const hasIcon = segments.some((s) => s.type === 'icon');
+  if (!hasIcon) {
+    return renderTextRun(segments, keyPrefix, styles.inlineParagraph);
+  }
+  const runs = [];
+  let currentTextRun = [];
+  segments.forEach((s, i) => {
+    if (s.type === 'icon') {
+      if (currentTextRun.length) {
+        runs.push({ type: 'text', segments: currentTextRun });
+        currentTextRun = [];
+      }
+      runs.push({ type: 'icon', name: s.name });
+    } else {
+      currentTextRun.push(s);
+    }
+  });
+  if (currentTextRun.length) runs.push({ type: 'text', segments: currentTextRun });
+
+  return (
+    <View key={keyPrefix} style={styles.inlineRow}>
+      {runs.map((r, i) =>
+        r.type === 'icon' ? (
+          <Ionicons
+            key={`${keyPrefix}-icon-${i}`}
+            name={ICON_MAP[r.name] || 'ellipse-outline'}
+            size={16}
+            color={colors.textSecondary}
+            style={styles.inlineIcon}
+          />
+        ) : (
+          renderTextRun(r.segments, `${keyPrefix}-run-${i}`, styles.body)
+        )
+      )}
     </View>
   );
 }
@@ -223,6 +252,12 @@ const styles = StyleSheet.create({
     fontFamily: typography.fontFamilySemiBold,
     color: colors.accent,
     lineHeight: 24,
+  },
+  inlineParagraph: {
+    ...typography.body,
+    color: colors.textSecondary,
+    lineHeight: 24,
+    marginBottom: spacing.xxs,
   },
   inlineRow: {
     flexDirection: 'row',

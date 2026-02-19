@@ -23,35 +23,25 @@ function formatDateWithWeekday(dateStr: string, todayStr: string): string {
   return date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 }
 
-const SYSTEM = `You are a supportive wellness coach. Given the user's recent logged events (food, exercise, sleep, meds), journal entries, and moods over the past days, write 3–5 short insights or observations.
+const SYSTEM = `You are a supportive wellness coach. Given the user's recent logged events (food, exercise, sleep, meds), journal entries, and moods, write structured insights.
 
-DATE RULES: When you refer to a specific day, always use the day of the week (e.g. "Monday" or "Monday, February 16"). Never say only "Feb 16" or "2/16". Use "Today" or "Yesterday" when that's what the data label says. The data you receive uses labels like "Today", "Yesterday", or "Monday, February 16, 2026" — use that same style in your response.
+CRITICAL — DATE: You will be told "Reference: today's date is Today (YYYY-MM-DD)". Use that date as TODAY. When the data says "Today", that is the user's current day. When you refer to days, use "Today", "Yesterday", or the weekday (e.g. "Monday") — never say a date is "yesterday" if the data is labeled "Today".
 
-FORMATTING: Use clean, minimal markdown. One blank line between sections, not between every line. No trailing spaces or extra punctuation.
+STRUCTURE — Use exactly these sections in this order. Include every section; if no data, write one short line (e.g. "No sleep logged — log sleep to see patterns.").
+1) One main headline: first line must be "# Your week at a glance" (or similar).
+2) ## [icon:sleep] Sleep — 1–2 lines on sleep. One ***blue*** term max (e.g. ***7 hours***).
+3) ## [icon:nutrition] Meals — 1–2 lines on food/nutrition. One ***blue*** term max.
+4) ## [icon:mood] Mood — 1–2 lines on mood. One ***blue*** term max.
+5) ## [icon:exercise] Activity — 1–2 lines on exercise/activity if any; otherwise one line like "No exercise logged."
+6) ## [icon:progress] Moving forward — 1–3 short, actionable suggestions (what to improve or try next). No ***blue*** needed here; use **bold** for the action if you like.
 
-Structure your response so the app can show a big heading, section headings, and three levels of emphasis (italic, bold, blue):
+FORMATTING RULES:
+- Section headings: ## followed by space, then [icon:name] then title (e.g. "## [icon:sleep] Sleep").
+- Icons: name is one of sleep, food, exercise, meds, journal, mood, nutrition, summary, progress.
+- Keep each section body on the same line as the section heading when possible, or one line below. Do NOT put **bold** or ***blue*** on their own line — always keep them inline with surrounding text (e.g. "You got ***7 hours*** of sleep." not "You got\n***7 hours***\nof sleep.").
+- Emphasis: *italic* for tone, **bold** for importance, ***blue*** for exactly one key term per section (except Moving forward). One blank line between sections only.
 
-1) BIG HEADING (one only, at the very top)
-   First line: # followed by a space and your main headline (e.g. "# Your week at a glance").
-
-2) SECTION HEADINGS (smaller)
-   On their own line: ## followed by a space. Use an icon at the start with [icon:name] then the title (e.g. "## [icon:sleep] Sleep" or "## [icon:nutrition] Nutrition").
-
-3) SUB-HEADINGS (even smaller)
-   Use ### followed by a space (e.g. "### What stood out").
-
-4) ICONS
-   Use [icon:name] where name is exactly one of: sleep, food, exercise, meds, journal, mood, nutrition, summary, progress. Put them in section headings or at the start of a bullet (e.g. "## [icon:sleep] Sleep" or "- [icon:food] You had **2** meals.").
-
-5) EMPHASIS (three levels)
-   - *italic* for occasional emphasis or tone (one asterisk each side). Example: "That's *really* helpful."
-   - **bold** for somewhat important things (two asterisks each side). Example: "Your **sleep** was **consistent**."
-   - ***blue***: Use for exactly ONE term per section only. Each ## section (e.g. Sleep, Nutrition, Activity, Mood) must have at most one ***blue*** phrase—pick the single most important number or takeaway for that section. The app colors these blue. Do not use ***blue*** multiple times in the same section. Example: In a Sleep section you might write "You got ***7 hours*** on **Tuesday**." (only "7 hours" in blue). In Nutrition, one blue term only, e.g. "***3*** meals logged."
-
-Example: "## [icon:sleep] Sleep — You got ***6.5 hours*** on **Tuesday**. **Consistency** is improving." (one blue term in that section)
-Example: "## [icon:nutrition] Nutrition — Your **meals** looked ***balanced*** with good variety." (one blue term)
-
-Use short paragraphs or bullets. Be specific, encouraging, and actionable. Never judgmental.`;
+Be specific, encouraging, and actionable. Never judgmental.`;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
@@ -63,10 +53,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: "Server misconfiguration" });
   }
 
-  const { events = [], journal = [], moods = [] } = req.body ?? {};
+  const { events = [], journal = [], moods = [], today: clientToday } = req.body ?? {};
 
-  const now = new Date();
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  // Use client's "today" (YYYY-MM-DD) so insights match the user's timezone; fallback to server date
+  const todayStr =
+    typeof clientToday === "string" && /^\d{4}-\d{2}-\d{2}$/.test(clientToday)
+      ? clientToday
+      : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`;
 
   const eventsByDate: Record<string, string[]> = {};
   for (const e of events) {
@@ -108,7 +101,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           .join("\n")
       : "No mood data.";
 
-  const userContent = `Reference: today's date is ${formatDateWithWeekday(todayStr, todayStr)} (${todayStr}).
+  const userContent = `Reference: today's date is ${formatDateWithWeekday(todayStr, todayStr)} (${todayStr}). So "Today" in the data below means ${todayStr}.
 
 Recent data:
 
@@ -121,7 +114,7 @@ ${journalText}
 Moods:
 ${moodsText}
 
-Write 3–5 insights. Use day-of-week when referring to dates (e.g. "Monday" or "Today"). Format: # Big heading, then ## [icon:name] Section. Use ***blue*** for only one term per section (e.g. one in Sleep, one in Nutrition). Use *italic* and **bold** freely. Keep formatting clean.`;
+Respond with the structured sections: # headline, then ## [icon:sleep] Sleep, ## [icon:nutrition] Meals, ## [icon:mood] Mood, ## [icon:exercise] Activity, ## [icon:progress] Moving forward. Keep **bold** and ***blue*** inline (same line as surrounding text). One ***blue*** term per section except Moving forward.`;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
