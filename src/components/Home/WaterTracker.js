@@ -15,7 +15,7 @@ import Animated, {
   useAnimatedReaction,
   runOnJS,
 } from 'react-native-reanimated';
-import Svg, { Circle } from 'react-native-svg';
+import Svg, { Circle, Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { useConfetti } from '../ConfettiProvider';
 import { useNavigation } from '@react-navigation/native';
@@ -163,7 +163,22 @@ export default function WaterTracker({ refreshTrigger, loading = false }) {
   const waterGoal = parseInt(profile.waterGoalOz, 10) || 64;
 
   const [selectedOz, setSelectedOz] = useState(32);
+  const [cardLayout, setCardLayout] = useState({ width: 0, height: 0 });
   const fireConfetti = useConfetti();
+
+  const renderCardGradient = (gradientId) =>
+    cardLayout.width > 0 &&
+    cardLayout.height > 0 && (
+      <Svg style={styles.cardGradientSvg} width={cardLayout.width} height={cardLayout.height} preserveAspectRatio="none">
+        <Defs>
+          <LinearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">
+            <Stop offset="0%" stopColor="#1c2128" />
+            <Stop offset="100%" stopColor={colors.surface} />
+          </LinearGradient>
+        </Defs>
+        <Rect x={0} y={0} width={cardLayout.width} height={cardLayout.height} fill={`url(#${gradientId})`} rx={borderRadius.md} ry={borderRadius.md} />
+      </Svg>
+    );
 
   const progress = waterGoal > 0 ? Math.min(1, todayOz / waterGoal) : 0;
 
@@ -199,7 +214,9 @@ export default function WaterTracker({ refreshTrigger, loading = false }) {
   if (loading) {
     return (
       <View style={styles.container}>
-        <View style={styles.card}>
+        <View style={styles.card} onLayout={(e) => setCardLayout({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}>
+          {renderCardGradient('waterCardGradientLoading')}
+          <Ionicons name="water-outline" size={20} color={colors.textSecondary} style={styles.cardIcon} />
           <View style={styles.row}>
             <View style={[styles.leftColumn, { maxWidth: leftWidth }]}>
               <SkeletonLines widths={['70%', '70%', '50%']} gap={10} />
@@ -226,7 +243,9 @@ export default function WaterTracker({ refreshTrigger, loading = false }) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.card}>
+      <View style={styles.card} onLayout={(e) => setCardLayout({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}>
+        {renderCardGradient('waterCardGradient')}
+        <Ionicons name="water-outline" size={20} color={colors.textSecondary} style={styles.cardIcon} />
         <View style={styles.row}>
           <View style={[styles.leftColumn, { maxWidth: leftWidth }]}>
             <View style={styles.selectors}>
@@ -274,11 +293,25 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   card: {
-    backgroundColor: colors.surface,
+    position: 'relative',
     borderRadius: borderRadius.md,
     padding: spacing.lg,
     borderWidth: 1,
     borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  cardGradientSvg: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  cardIcon: {
+    position: 'absolute',
+    top: spacing.sm,
+    right: spacing.sm,
+    opacity: 0.35,
   },
   row: {
     flexDirection: 'row',

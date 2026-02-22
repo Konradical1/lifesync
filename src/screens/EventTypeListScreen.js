@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import EventTypeRow from '../components/AddEvent/EventTypeRow';
@@ -14,30 +14,52 @@ const TYPES = [
   EVENT_TYPES.other,
 ];
 
+const JOURNAL_ENTRY = {
+  id: 'journal',
+  iconName: 'book-outline',
+  label: 'Journal entry',
+  subtitle: 'Add a journal entry',
+  tintColor: colors.accent,
+  onPress: (navigation) => {
+    navigation.navigate('HomeTab', {
+      screen: 'JournalHistory',
+      params: { openAddJournal: true },
+    });
+  },
+};
+
 export default function EventTypeListScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md }]}
-      showsVerticalScrollIndicator={false}
-    >
+    <View style={[styles.container, { paddingTop: insets.top + spacing.md }]}>
       <Text style={styles.title}>Add <Text style={styles.titleHighlight}>Event</Text></Text>
       <Text style={styles.subtitle}>Choose a category to log</Text>
-      {TYPES.map((type) => (
+      <View style={styles.list}>
+        {TYPES.map((type) => (
+          <EventTypeRow
+            key={type}
+            type={type}
+            iconName={EVENT_ICON_NAMES[type]}
+            label={EVENT_LABELS[type]}
+            onPress={() => navigation.navigate(
+              type.charAt(0).toUpperCase() + type.slice(1) + 'Event'
+            )}
+            style={styles.row}
+          />
+        ))}
         <EventTypeRow
-          key={type}
-          type={type}
-          iconName={EVENT_ICON_NAMES[type]}
-          label={EVENT_LABELS[type]}
-          onPress={() => navigation.navigate(
-          type.charAt(0).toUpperCase() + type.slice(1) + 'Event'
-        )}
+          type="journal"
+          iconName={JOURNAL_ENTRY.iconName}
+          label={JOURNAL_ENTRY.label}
+          subtitle={JOURNAL_ENTRY.subtitle}
+          tintColor={JOURNAL_ENTRY.tintColor}
+          onPress={() => JOURNAL_ENTRY.onPress(navigation)}
+          style={styles.row}
         />
-      ))}
-    </ScrollView>
+      </View>
+    </View>
   );
 }
 
@@ -45,9 +67,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-  content: {
-    paddingBottom: spacing.xl,
+    paddingHorizontal: 0,
+    paddingBottom: spacing.lg,
   },
   title: {
     fontSize: typography.largeTitle.fontSize,
@@ -64,5 +85,13 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginHorizontal: spacing.md,
     marginBottom: spacing.lg,
+  },
+  list: {
+    flex: 1,
+    marginTop: spacing.xs,
+  },
+  row: {
+    flex: 1,
+    marginBottom: spacing.sm,
   },
 });

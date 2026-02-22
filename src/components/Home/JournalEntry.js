@@ -131,7 +131,7 @@ export function JournalEditor({ date, initialText, onClose, entryId = null }) {
             <View style={editorStyles.header}>
               <Text style={editorStyles.title}>{isEdit ? 'Edit entry' : 'Add journal entry'}</Text>
               <TouchableOpacity onPress={performClose}>
-                <Text style={editorStyles.close}>Close</Text>
+                <Text style={editorStyles.close}>Save</Text>
               </TouchableOpacity>
             </View>
             <ScrollView style={editorStyles.scroll} contentContainerStyle={editorStyles.scrollContent}>

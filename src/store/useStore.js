@@ -7,6 +7,7 @@ import { loadFromSupabase, saveFullStateToSupabase } from '../api/supabaseSync';
 const PROFILE_STORAGE_KEY = '@journalx_profile';
 const INSIGHTS_STORAGE_KEY = '@journalx_insights';
 const WATER_STORAGE_KEY = '@journalx_water';
+const WEIGHT_LOG_STORAGE_KEY = '@journalx_weight_log';
 
 const StoreContext = createContext(null);
 
@@ -21,12 +22,16 @@ const initialState = {
     age: '',
     height: '',
     weight: '',
+    gender: '',
+    weightGoal: '',
+    aiContext: '',
     medicalConditions: '',
     calorieGoal: '',
     proteinGoal: '',
     waterGoalOz: '',
   },
   waterEntries: [], // { id, date (YYYY-MM-DD), time (HH:mm), oz, createdAt }
+  weightLogs: [], // { id, weight (string, lbs number), date (YYYY-MM-DD), createdAt } — newest first
   loading: false,
 };
 
@@ -65,6 +70,7 @@ function storeReducer(state, action) {
         insights: action.payload.insights ?? state.insights,
         profile: action.payload.profile != null ? { ...state.profile, ...action.payload.profile } : state.profile,
         waterEntries: action.payload.waterEntries ?? state.waterEntries,
+        weightLogs: action.payload.weightLogs ?? state.weightLogs,
         loading: false,
       };
     }
@@ -169,6 +175,12 @@ function storeReducer(state, action) {
         ...state,
         insights: [action.payload, ...state.insights],
       };
+    case 'ADD_WEIGHT_LOG':
+      return {
+        ...state,
+        weightLogs: [action.payload, ...state.weightLogs],
+        profile: { ...state.profile, weight: action.payload.weight },
+      };
     default:
       return state;
   }
@@ -186,10 +198,11 @@ export function StoreProvider({ children }) {
   useEffect(() => {
     const loadProfileAndInsights = async () => {
       try {
-        const [profileRaw, insightsRaw, waterRaw] = await Promise.all([
+        const [profileRaw, insightsRaw, waterRaw, weightLogRaw] = await Promise.all([
           AsyncStorage.getItem(PROFILE_STORAGE_KEY),
           AsyncStorage.getItem(INSIGHTS_STORAGE_KEY),
           AsyncStorage.getItem(WATER_STORAGE_KEY),
+          AsyncStorage.getItem(WEIGHT_LOG_STORAGE_KEY),
         ]);
         const payload = {};
         if (profileRaw) {
@@ -209,6 +222,14 @@ export function StoreProvider({ children }) {
             payload.waterEntries = Array.isArray(list) ? list : [];
           } catch (_) {
             payload.waterEntries = [];
+          }
+        }
+        if (weightLogRaw) {
+          try {
+            const list = JSON.parse(weightLogRaw);
+            payload.weightLogs = Array.isArray(list) ? list : [];
+          } catch (_) {
+            payload.weightLogs = [];
           }
         }
         if (Object.keys(payload).length > 0) {
@@ -249,7 +270,7 @@ export function StoreProvider({ children }) {
     return () => {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     };
-  }, [state.events, state.journal, state.summaries, state.moodEntries, state.profile, state.waterEntries]);
+  }, [state.events, state.journal, state.summaries, state.moodEntries, state.profile, state.waterEntries, state.weightLogs]);
 
   // Save profile to AsyncStorage when it changes (after initial load)
   useEffect(() => {
@@ -268,6 +289,12 @@ export function StoreProvider({ children }) {
     if (!profileLoadedRef.current) return;
     AsyncStorage.setItem(WATER_STORAGE_KEY, JSON.stringify(state.waterEntries)).catch(() => {});
   }, [state.waterEntries]);
+
+  // Save weight logs to AsyncStorage when they change (after initial load)
+  useEffect(() => {
+    if (!profileLoadedRef.current) return;
+    AsyncStorage.setItem(WEIGHT_LOG_STORAGE_KEY, JSON.stringify(state.weightLogs)).catch(() => {});
+  }, [state.weightLogs]);
 
   return (
     <StoreContext.Provider value={{ state, dispatch }}>
@@ -393,6 +420,12 @@ export function useTodayWaterOz() {
 export function useWaterEntries() {
   const { state } = useStore();
   return state.waterEntries;
+}
+
+/** Weight logs (newest first). */
+export function useWeightLogs() {
+  const { state } = useStore();
+  return state.weightLogs;
 }
 
 /** Today's total calories and protein from food events. */

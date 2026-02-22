@@ -189,8 +189,8 @@ export async function getDaySummaryShort(payload) {
 }
 
 /**
- * Get AI-generated insights from recent events, journal entries, and moods.
- * @param {{ events: array, journal: array, moods: array }} payload
+ * Get AI-generated insights from recent events, journal entries, moods, and profile context.
+ * @param {{ events: array, journal: array, moods: array, today?: string, profile?: object }} payload
  * @returns {Promise<{ ok: boolean, insights?: string, error?: string }>}
  */
 export async function getInsights(payload) {

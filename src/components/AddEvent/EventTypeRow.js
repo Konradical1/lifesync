@@ -12,18 +12,19 @@ const SUBTITLES = {
   other: 'Log anything else',
 };
 
-export default function EventTypeRow({ type, iconName, label, onPress }) {
-  const tintColor = EVENT_TYPE_COLORS[type] ?? colors.accent;
+export default function EventTypeRow({ type, iconName, label, subtitle: subtitleProp, tintColor: tintColorProp, onPress, style }) {
+  const tintColor = tintColorProp ?? EVENT_TYPE_COLORS[type] ?? colors.accent;
+  const subtitle = subtitleProp ?? SUBTITLES[type] ?? '';
   return (
     <TouchableOpacity
-      style={[styles.row, { borderLeftColor: tintColor }]}
+      style={[styles.row, { borderLeftColor: tintColor }, style]}
       onPress={onPress}
       activeOpacity={0.8}
     >
       <Ionicons name={iconName} size={24} color={tintColor} style={styles.icon} />
       <View style={styles.content}>
         <Text style={styles.label}>{label}</Text>
-        <Text style={styles.subtitle}>{SUBTITLES[type] ?? ''}</Text>
+        <Text style={styles.subtitleText}>{subtitle}</Text>
       </View>
       <Text style={styles.arrow}>›</Text>
     </TouchableOpacity>
@@ -52,7 +53,7 @@ const styles = StyleSheet.create({
     fontWeight: typography.headline.fontWeight,
     color: colors.textPrimary,
   },
-  subtitle: {
+  subtitleText: {
     fontSize: typography.footnote.fontSize,
     color: colors.textSecondary,
     marginTop: 2,

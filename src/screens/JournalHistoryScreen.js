@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ScrollView,
   Text,
@@ -11,7 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useJournal, useStore } from '../store/useStore';
@@ -68,8 +68,18 @@ const PREVIEW_LINES = 3;
 export default function JournalHistoryScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const route = useRoute();
   const allEntries = useJournal();
   const { dispatch } = useStore();
+
+  const [showAddJournal, setShowAddJournal] = useState(false);
+
+  useEffect(() => {
+    if (route.params?.openAddJournal) {
+      setShowAddJournal(true);
+      navigation.setParams({ openAddJournal: undefined });
+    }
+  }, [route.params?.openAddJournal]);
 
   const groupedEntries = useMemo(() => {
     const sorted = [...allEntries].sort((a, b) => {
@@ -171,7 +181,6 @@ export default function JournalHistoryScreen() {
                         }}
                         style={styles.dateButton}
                       >
-                        <Text style={styles.dateText}>{formatDateDisplay(entry.date)}</Text>
                         <Text style={styles.timeText}>{formatTime12h(entry.time)}</Text>
                       </TouchableOpacity>
                       <View style={styles.actionButtons}>
@@ -272,6 +281,14 @@ export default function JournalHistoryScreen() {
           onClose={() => setEditingEntry(null)}
         />
       )}
+
+      {showAddJournal && (
+        <JournalEditor
+          date={formatDateKey(new Date())}
+          initialText=""
+          onClose={() => setShowAddJournal(false)}
+        />
+      )}
     </ScrollView>
   );
 }
@@ -315,7 +332,9 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderRadius: borderRadius.md,
-    padding: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
+    paddingHorizontal: spacing.md,
     marginTop: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
@@ -335,7 +354,7 @@ const styles = StyleSheet.create({
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginBottom: spacing.sm,
   },
   dateButton: {
@@ -349,7 +368,6 @@ const styles = StyleSheet.create({
   timeText: {
     fontSize: typography.footnote.fontSize,
     color: colors.textSecondary,
-    marginTop: 2,
   },
   actionButtons: {
     flexDirection: 'row',

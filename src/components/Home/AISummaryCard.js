@@ -4,9 +4,10 @@ import { View, Text, TouchableOpacity, StyleSheet, LayoutAnimation, Platform, UI
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
+import { Ionicons } from '@expo/vector-icons';
 import { useStore, useSummary, useLatestSummary, useEvents, useJournal, useMood, useWaterEntries } from '../../store/useStore';
 import { getDaySummaryShort } from '../../api/ai';
-import { colors, spacing, typography } from '../../theme/constants';
+import { colors, spacing, typography, borderRadius } from '../../theme/constants';
 import { SkeletonLines } from './SkeletonText';
 
 const BLUR_IN_OFFSET = 10;
@@ -66,7 +67,7 @@ function doFetchSummary({ today, events, journal, mood, waterEntries, profile, d
   });
 }
 
-export default function AISummaryCard({ onRefreshRef, onFetchDone, onLoadingChange, animTrigger = 0 }) {
+export default function AISummaryCard({ refreshing = false, onFetchDone, onLoadingChange, animTrigger = 0 }) {
   const today = formatDateKey(new Date());
   const summaryToday = useSummary(today);
   const latestSummary = useLatestSummary(today);
@@ -114,13 +115,6 @@ export default function AISummaryCard({ onRefreshRef, onFetchDone, onLoadingChan
         onLoadingChange?.(false);
       });
   }, [today, events, journal, mood, waterEntries, profile, dispatch, onFetchDone, onLoadingChange]);
-
-  useEffect(() => {
-    if (onRefreshRef) {
-      onRefreshRef.current = performRefresh;
-      return () => { onRefreshRef.current = null; };
-    }
-  }, [onRefreshRef, performRefresh]);
 
   // Initial fetch when we have data and no summary yet; re-runs when store hydrates
   useEffect(() => {
@@ -222,7 +216,25 @@ export default function AISummaryCard({ onRefreshRef, onFetchDone, onLoadingChan
     );
   }
 
-  const showBlurIn = segmentAnims.length === segments.length && segmentAnims.length > 0;
+  const showPlaceholder = refreshing && summary;
+  const showBlurIn = !showPlaceholder && segmentAnims.length === segments.length && segmentAnims.length > 0;
+
+  if (showPlaceholder) {
+    return (
+      <View style={styles.wrap}>
+        <View style={styles.card}>
+          <Text style={styles.label}><Text style={styles.labelAccent}>AI</Text> SUMMARY</Text>
+          <SkeletonLines />
+          <View style={styles.cardFooter}>
+            <View style={styles.regenerateButton}>
+              <Ionicons name="refresh-outline" size={20} color={colors.textTertiary} />
+            </View>
+            <Text style={styles.readMore}>Tap to read more</Text>
+          </View>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.wrap}>
@@ -262,13 +274,29 @@ export default function AISummaryCard({ onRefreshRef, onFetchDone, onLoadingChan
               <ActivityIndicator size="small" color={colors.accent} />
             </View>
           ) : null}
+          <View style={styles.cardFooter}>
+            <TouchableOpacity
+              style={styles.regenerateButton}
+              onPress={(e) => {
+                e?.stopPropagation?.();
+                performRefresh();
+              }}
+              disabled={loading}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color={colors.accent} />
+              ) : (
+                <Ionicons name="refresh-outline" size={20} color={colors.accent} />
+              )}
+            </TouchableOpacity>
+            {!expanded ? (
+              <Text style={styles.readMore}>Tap to read more</Text>
+            ) : (
+              <Text style={styles.readMore}>Tap to show less</Text>
+            )}
+          </View>
         </View>
-        {!expanded && (
-          <Text style={styles.readMore}>Tap to read more</Text>
-        )}
-        {expanded && (
-          <Text style={styles.readMore}>Tap to show less</Text>
-        )}
       </TouchableOpacity>
     </View>
   );
@@ -281,6 +309,7 @@ const styles = StyleSheet.create({
   },
   touchable: {},
   card: {
+    borderRadius: borderRadius.md,
     padding: spacing.md,
     paddingTop: spacing.xs,
   },
@@ -336,11 +365,19 @@ const styles = StyleSheet.create({
     color: colors.accent,
     fontFamily: typography.fontFamilySemiBoldItalic,
   },
+  cardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing.xs,
+  },
+  regenerateButton: {
+    padding: spacing.xs,
+    marginLeft: -spacing.xs,
+  },
   readMore: {
     ...typography.footnote,
     color: colors.textSecondary,
-    marginTop: spacing.xs,
-    alignSelf: 'flex-end',
   },
   inlineLoader: {
     marginTop: spacing.sm,

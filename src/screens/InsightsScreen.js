@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { ScrollView, Text, View, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { FlatList, Text, View, StyleSheet, ActivityIndicator, TouchableOpacity, RefreshControl, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { useStore, useEvents, useLatestInsight } from '../store/useStore';
 import { getInsights } from '../api/ai';
 import InsightCard from '../components/Insights/InsightCard';
@@ -24,6 +25,32 @@ function getLast7Days() {
   return out;
 }
 
+/** Placeholder section definitions shown while insights are loading. */
+const PLACEHOLDER_SECTIONS = [
+  { title: 'Sleep', iconName: 'sleep' },
+  { title: 'Meals', iconName: 'nutrition' },
+  { title: 'Mood', iconName: 'mood' },
+  { title: 'Activity', iconName: 'exercise' },
+  { title: 'Moving forward', iconName: 'progress' },
+];
+
+/** Parse AI insight text into sections by ## [icon:name] Title. Returns [{ title, body, iconName }]. */
+function parseInsightSections(text) {
+  if (!text || !text.trim()) return [];
+  const sections = [];
+  const parts = text.split(/\n(?=##\s+\[icon:)/i);
+  for (const part of parts) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+    const firstNewline = trimmed.indexOf('\n');
+    const firstLine = firstNewline >= 0 ? trimmed.slice(0, firstNewline) : trimmed;
+    const body = firstNewline >= 0 ? trimmed.slice(firstNewline + 1).trim() : '';
+    const m = firstLine.match(/^##\s+\[icon:\s*(\w+)\]\s*(.+)$/i);
+    if (m) sections.push({ title: m[2].trim(), body, iconName: m[1].trim().toLowerCase() });
+  }
+  return sections;
+}
+
 export default function InsightsScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
@@ -43,12 +70,23 @@ export default function InsightsScreen() {
 
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState(null);
+  const [animTrigger, setAnimTrigger] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
   const hasAutoFetchedNewDay = useRef(false);
+
+  const REFRESH_ANIMATION_MS = 700;
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    setTimeout(() => {
+      setRefreshing(false);
+      setAnimTrigger((t) => t + 1);
+    }, REFRESH_ANIMATION_MS);
+  }, []);
 
   const fetchInsights = () => {
     setAiError(null);
     setAiLoading(true);
-    getInsights({ events: recentEvents, journal: recentJournal, moods, today })
+    getInsights({ events: recentEvents, journal: recentJournal, moods, today, profile: state.profile })
       .then((result) => {
         if (result.ok) {
           dispatch({
@@ -60,6 +98,7 @@ export default function InsightsScreen() {
               createdAt: new Date().toISOString(),
             },
           });
+          setAnimTrigger((t) => t + 1);
         } else {
           setAiError(result.error || 'Could not load insights');
         }
@@ -82,26 +121,39 @@ export default function InsightsScreen() {
   const todayEvents = events.filter((e) => e.date === today);
   const sleepCount = events.filter((e) => e.type === 'sleep').length;
   const foodCount = events.filter((e) => e.type === 'food').length;
+  const insightSections = latestInsight?.text ? parseInsightSections(latestInsight.text) : [];
 
-  return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top }]}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.header}>
-        {navigation.canGoBack() ? (
-          <Text style={styles.backLink} onPress={() => navigation.goBack()}>
-            ← Back
-          </Text>
-        ) : (
-          <View style={{ width: 50 }} />
-        )}
-        <Text style={styles.title}>Insights</Text>
-        <View style={{ width: 50 }} />
-      </View>
+  const refreshControl = (
+    <RefreshControl
+      refreshing={refreshing}
+      onRefresh={onRefresh}
+      tintColor={colors.accent}
+      title="Refreshing"
+      titleColor={colors.textSecondary}
+      colors={Platform.OS === 'android' ? [colors.accent] : undefined}
+      progressViewOffset={Platform.OS === 'android' ? 0 : undefined}
+      progressBackgroundColor={Platform.OS === 'android' ? colors.surface : undefined}
+    />
+  );
+
+  const listHeader = (
+    <>
       <View style={styles.aiSection}>
-        <Text style={styles.sectionTitle}>AI insights</Text>
+        <View style={styles.aiSectionHeader}>
+          <Text style={styles.aiLabel}><Text style={styles.aiLabelAccent}>AI</Text> INSIGHTS</Text>
+          <TouchableOpacity
+            style={styles.refreshIconButton}
+            onPress={fetchInsights}
+            disabled={aiLoading}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            {aiLoading ? (
+              <ActivityIndicator size="small" color={colors.accent} />
+            ) : (
+              <Ionicons name="refresh-outline" size={22} color={colors.accent} />
+            )}
+          </TouchableOpacity>
+        </View>
         {aiLoading && (
           <View style={styles.loadingRow}>
             <ActivityIndicator color={colors.accent} size="small" />
@@ -111,24 +163,43 @@ export default function InsightsScreen() {
         {aiError && (
           <Text style={styles.errorText}>{aiError}</Text>
         )}
-        {latestInsight?.text && !aiLoading && (
+        {(aiLoading || refreshing) ? (
+          PLACEHOLDER_SECTIONS.map((section) => (
+            <InsightCard
+              key={section.title}
+              title={section.title}
+              iconName={section.iconName}
+              placeholder
+              formatted
+            />
+          ))
+        ) : latestInsight?.text ? (
           <>
-            <InsightCard title="From your recent data" body={latestInsight.text} formatted />
+            {insightSections.length > 0 ? (
+              insightSections.map((section, index) => (
+                <InsightCard
+                  key={section.title}
+                  title={section.title}
+                  body={section.body}
+                  iconName={section.iconName}
+                  formatted
+                  animTrigger={animTrigger}
+                  sectionIndex={index}
+                />
+              ))
+            ) : (
+              <InsightCard title="From your recent data" body={latestInsight.text} formatted />
+            )}
             <Text style={styles.generatedLabel}>
               Generated {latestInsight.date === today ? 'today' : latestInsight.date}
             </Text>
           </>
-        )}
+        ) : null}
         {!latestInsight?.text && !aiLoading && !aiError && recentEvents.length === 0 && recentJournal.length === 0 && moods.length === 0 && (
           <Text style={styles.hint}>Log events, journal, and moods to see AI insights.</Text>
         )}
         {!latestInsight?.text && !aiLoading && !aiError && (recentEvents.length > 0 || recentJournal.length > 0 || moods.length > 0) && (
-          <Text style={styles.hint}>Tap Refresh to generate your first insights.</Text>
-        )}
-        {!aiLoading && (
-          <TouchableOpacity style={styles.refreshButton} onPress={fetchInsights}>
-            <Text style={styles.refreshButtonText}>{latestInsight?.text ? 'Refresh insights' : 'Generate insights'}</Text>
-          </TouchableOpacity>
+          <Text style={styles.hint}>Tap the refresh icon to generate your first insights.</Text>
         )}
       </View>
       <InsightCard
@@ -157,11 +228,43 @@ export default function InsightsScreen() {
         </View>
         <Text style={styles.chartLabel}>Mon Tue Wed Thu Fri Sat Sun</Text>
       </View>
-    </ScrollView>
+    </>
+  );
+
+  return (
+    <View style={styles.wrapper}>
+      <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
+        {navigation.canGoBack() ? (
+          <Text style={styles.backLink} onPress={() => navigation.goBack()}>
+            ← Back
+          </Text>
+        ) : (
+          <View style={{ width: 50 }} />
+        )}
+        <Text style={styles.title}>Insights</Text>
+        <View style={{ width: 50 }} />
+      </View>
+      <FlatList
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        contentInsetAdjustmentBehavior="never"
+        showsVerticalScrollIndicator={false}
+        data={[]}
+        renderItem={() => null}
+        ListHeaderComponent={listHeader}
+        refreshControl={refreshControl}
+        alwaysBounceVertical={true}
+        bounces={true}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -174,7 +277,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
+    paddingBottom: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
@@ -219,18 +322,31 @@ const styles = StyleSheet.create({
   },
   aiSection: {
     marginBottom: spacing.md,
-  },
-  sectionTitle: {
-    fontSize: typography.footnote.fontSize,
-    color: colors.textSecondary,
-    marginBottom: spacing.sm,
     marginHorizontal: spacing.md,
+  },
+  aiSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+  },
+  aiLabel: {
+    ...typography.footnote,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+  },
+  aiLabelAccent: {
+    color: colors.accent,
+    fontFamily: typography.fontFamilySemiBold,
+  },
+  refreshIconButton: {
+    padding: spacing.xs,
+    marginRight: -spacing.xs,
   },
   loadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    marginHorizontal: spacing.md,
     marginBottom: spacing.sm,
   },
   loadingText: {
@@ -240,30 +356,17 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: typography.footnote.fontSize,
     color: colors.textTertiary,
-    marginHorizontal: spacing.md,
     marginBottom: spacing.sm,
   },
   hint: {
     fontSize: typography.footnote.fontSize,
     color: colors.textTertiary,
-    marginHorizontal: spacing.md,
     fontStyle: 'italic',
   },
   generatedLabel: {
     fontSize: typography.caption1.fontSize,
     color: colors.textTertiary,
-    marginHorizontal: spacing.md,
     marginTop: spacing.xs,
     marginBottom: spacing.xs,
-  },
-  refreshButton: {
-    alignSelf: 'flex-start',
-    marginHorizontal: spacing.md,
-    marginTop: spacing.xs,
-    paddingVertical: spacing.xs,
-  },
-  refreshButtonText: {
-    fontSize: typography.footnote.fontSize,
-    color: colors.accent,
   },
 });

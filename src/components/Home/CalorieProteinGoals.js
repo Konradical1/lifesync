@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, useWindowDimensions, Animated as RNAnimated } from 'react-native';
-import Svg, { Circle } from 'react-native-svg';
+import { Ionicons } from '@expo/vector-icons';
+import Svg, { Circle, Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { useStore } from '../../store/useStore';
 import { useTodayCaloriesAndProtein } from '../../store/useStore';
 import { colors, spacing, typography, borderRadius } from '../../theme/constants';
@@ -115,11 +116,28 @@ export default function CalorieProteinGoals({ animTrigger = 0, loading = false }
   const horizontalPadding = spacing.md * 2;
   const gap = spacing.md;
   const ringSize = Math.floor(((width - horizontalPadding - gap) / 2) * 0.82);
+  const [cardLayout, setCardLayout] = useState({ width: 0, height: 0 });
+
+  const renderCardGradient = (gradientId) =>
+    cardLayout.width > 0 &&
+    cardLayout.height > 0 && (
+      <Svg style={styles.cardGradientSvg} width={cardLayout.width} height={cardLayout.height} preserveAspectRatio="none">
+        <Defs>
+          <LinearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">
+            <Stop offset="0%" stopColor="#1c2128" />
+            <Stop offset="100%" stopColor={colors.surface} />
+          </LinearGradient>
+        </Defs>
+        <Rect x={0} y={0} width={cardLayout.width} height={cardLayout.height} fill={`url(#${gradientId})`} rx={borderRadius.md} ry={borderRadius.md} />
+      </Svg>
+    );
 
   if (loading) {
     return (
       <View style={styles.container}>
-        <View style={styles.card}>
+        <View style={styles.card} onLayout={(e) => setCardLayout({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}>
+          {renderCardGradient('foodCardGradientLoading')}
+          <Ionicons name="nutrition-outline" size={20} color={colors.textSecondary} style={styles.cardIcon} />
           <View style={styles.row}>
             <View style={[styles.ringWrap, { width: ringSize, height: ringSize }]}>
               <Svg width={ringSize} height={ringSize} style={styles.svg}>
@@ -169,7 +187,9 @@ export default function CalorieProteinGoals({ animTrigger = 0, loading = false }
 
   return (
     <View style={styles.container}>
-      <View style={styles.card}>
+      <View style={styles.card} onLayout={(e) => setCardLayout({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}>
+        {renderCardGradient('foodCardGradient')}
+        <Ionicons name="nutrition-outline" size={20} color={colors.textSecondary} style={styles.cardIcon} />
         <View style={styles.row}>
           <View style={[styles.ringWrap, { width: ringSize, height: ringSize }]}>
             <AnimatedRadialProgress size={ringSize} progress={calorieProgress} color={colors.eventFood} animTrigger={animTrigger} />
@@ -209,11 +229,25 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   card: {
-    backgroundColor: colors.surface,
+    position: 'relative',
     borderRadius: borderRadius.md,
     padding: spacing.lg,
     borderWidth: 1,
     borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  cardGradientSvg: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  cardIcon: {
+    position: 'absolute',
+    top: spacing.sm,
+    right: spacing.sm,
+    opacity: 0.35,
   },
   row: {
     flexDirection: 'row',

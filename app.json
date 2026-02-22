@@ -4,7 +4,7 @@
     "slug": "JournalX2",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/AppIcon.png",
+    "icon": "./assets/AppLogo2.jpg",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
@@ -14,18 +14,19 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.JournalX2"
+      "bundleIdentifier": "com.anonymous.JournalX2",
+      "icon": "./assets/AppLogo2.jpg"
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/AppIcon.png",
+        "foregroundImage": "./assets/AppLogo2.jpg",
         "backgroundColor": "#0D1117"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.anonymous.JournalX2"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/AppLogoTS.png"
     },
     "plugins": [
       "@react-native-community/datetimepicker",

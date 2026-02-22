@@ -23,7 +23,7 @@ function formatDateWithWeekday(dateStr: string, todayStr: string): string {
   return date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 }
 
-const SYSTEM = `You are a supportive wellness coach. Given the user's recent logged events (food, exercise, sleep, meds), journal entries, and moods, write structured insights.
+const SYSTEM = `You are a supportive wellness coach. Given the user's profile context and their recent logged events (food, exercise, sleep, meds), journal entries, and moods, write structured insights. Use any profile details (goals, medical conditions, user-provided context) to personalize your advice — for example, compare intake against their calorie/protein goals, note progress toward a weight goal, or factor in medical conditions when making suggestions.
 
 CRITICAL — DATE: You will be told "Reference: today's date is Today (YYYY-MM-DD)". Use that date as TODAY. When the data says "Today", that is the user's current day. When you refer to days, use "Today", "Yesterday", or the weekday (e.g. "Monday") — never say a date is "yesterday" if the data is labeled "Today".
 
@@ -53,7 +53,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: "Server misconfiguration" });
   }
 
-  const { events = [], journal = [], moods = [], today: clientToday } = req.body ?? {};
+  const { events = [], journal = [], moods = [], today: clientToday, profile } = req.body ?? {};
 
   // Use client's "today" (YYYY-MM-DD) so insights match the user's timezone; fallback to server date
   const todayStr =
@@ -101,8 +101,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           .join("\n")
       : "No mood data.";
 
-  const userContent = `Reference: today's date is ${formatDateWithWeekday(todayStr, todayStr)} (${todayStr}). So "Today" in the data below means ${todayStr}.
+  // Build profile context if available
+  const profileLines: string[] = [];
+  if (profile && typeof profile === "object") {
+    const p = profile as Record<string, string>;
+    if (p.name) profileLines.push(`Name: ${p.name}`);
+    if (p.age) profileLines.push(`Age: ${p.age}`);
+    if (p.gender) profileLines.push(`Gender: ${p.gender}`);
+    if (p.height) profileLines.push(`Height: ${p.height}`);
+    if (p.weight) profileLines.push(`Current weight: ${p.weight} lbs`);
+    if (p.weightGoal) profileLines.push(`Weight goal: ${p.weightGoal} lbs`);
+    if (p.calorieGoal) profileLines.push(`Daily calorie goal: ${p.calorieGoal}`);
+    if (p.proteinGoal) profileLines.push(`Daily protein goal: ${p.proteinGoal}g`);
+    if (p.waterGoalOz) profileLines.push(`Daily water goal: ${p.waterGoalOz} oz`);
+    if (p.medicalConditions) profileLines.push(`Medical conditions/notes: ${p.medicalConditions}`);
+    if (p.aiContext) profileLines.push(`Additional context from user: ${p.aiContext}`);
+  }
+  const profileText = profileLines.length > 0
+    ? `\nUser profile:\n${profileLines.join("\n")}\n`
+    : "";
 
+  const userContent = `Reference: today's date is ${formatDateWithWeekday(todayStr, todayStr)} (${todayStr}). So "Today" in the data below means ${todayStr}.
+${profileText}
 Recent data:
 
 Events:
@@ -114,7 +134,7 @@ ${journalText}
 Moods:
 ${moodsText}
 
-Respond with the structured sections: # headline, then ## [icon:sleep] Sleep, ## [icon:nutrition] Meals, ## [icon:mood] Mood, ## [icon:exercise] Activity, ## [icon:progress] Moving forward. Keep **bold** and ***blue*** inline (same line as surrounding text). One ***blue*** term per section except Moving forward.`;
+Respond with the structured sections: # headline, then ## [icon:sleep] Sleep, ## [icon:nutrition] Meals, ## [icon:mood] Mood, ## [icon:exercise] Activity, ## [icon:progress] Moving forward. Keep **bold** and ***blue*** inline (same line as surrounding text). One ***blue*** term per section except Moving forward. Use the user's profile to personalize advice — reference their goals, conditions, and context where relevant.`;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);

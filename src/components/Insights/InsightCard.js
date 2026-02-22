@@ -1,7 +1,14 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { View, Text, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { colors, spacing, typography, borderRadius } from '../../theme/constants';
+import { SkeletonLines } from '../Home/SkeletonText';
+
+const REVEAL_OFFSET = 10;
+const REVEAL_DURATION = 380;
+const REVEAL_STAGGER_MS = 42;
+const CARD_STAGGER_MS = 50;
 
 const ICON_MAP = {
   sleep: 'moon-outline',
@@ -36,6 +43,30 @@ function parseInlineSegments(text) {
     segments.push({ type: 'normal', text: text.slice(lastIndex) });
   }
   return segments.length ? segments : [{ type: 'normal', text: text }];
+}
+
+/** Flatten body into word-level segments (preserving bold/italic/blue). Newline segments force line break. */
+function getBodyWordSegments(body) {
+  if (!body || !body.trim()) return [];
+  const out = [];
+  const lines = body.split(/\n/);
+  for (let li = 0; li < lines.length; li++) {
+    const trimmed = lines[li].trim();
+    if (trimmed === '') {
+      out.push({ type: 'newline' });
+      continue;
+    }
+    const segments = parseInlineSegments(trimmed);
+    for (const seg of segments) {
+      if (seg.type === 'icon') continue;
+      const words = (seg.text || '').split(/\s+/).filter(Boolean);
+      for (const word of words) {
+        out.push({ type: seg.type, text: word });
+      }
+    }
+    if (li < lines.length - 1) out.push({ type: 'newline' });
+  }
+  return out;
 }
 
 /** Strip [icon:name] or [icon: name] from string and return { iconName, text }. */
@@ -180,12 +211,113 @@ function renderFormattedBody(body) {
   return elements;
 }
 
-export default function InsightCard({ title, body, highlight = '', formatted = false }) {
+export default function InsightCard({ title, body, highlight = '', formatted = false, iconName = null, placeholder = false, animTrigger = 0, sectionIndex = 0 }) {
+  const [cardLayout, setCardLayout] = useState({ width: 0, height: 0 });
+  const [segmentAnims, setSegmentAnims] = useState([]);
+  const gradientId = `insight-${(iconName || title || '').replace(/\W/g, '')}`;
+  const prevAnimTriggerRef = useRef(0);
+
+  const wordSegments = useMemo(() => (body ? getBodyWordSegments(body) : []), [body]);
+
+  useEffect(() => {
+    if (placeholder || animTrigger <= 0 || wordSegments.length === 0) return;
+    if (animTrigger === prevAnimTriggerRef.current) return;
+    prevAnimTriggerRef.current = animTrigger;
+
+    const values = wordSegments.map((seg) =>
+      seg.type === 'newline'
+        ? { opacity: new Animated.Value(1), translateY: new Animated.Value(0) }
+        : { opacity: new Animated.Value(0), translateY: new Animated.Value(REVEAL_OFFSET) }
+    );
+    setSegmentAnims(values);
+
+    const cardOffset = sectionIndex * CARD_STAGGER_MS;
+    let wordIndex = 0;
+    requestAnimationFrame(() => {
+      values.forEach((v, i) => {
+        if (wordSegments[i].type === 'newline') return;
+        const delayMs = cardOffset + wordIndex * REVEAL_STAGGER_MS;
+        wordIndex += 1;
+        Animated.sequence([
+          Animated.delay(delayMs),
+          Animated.parallel([
+            Animated.timing(v.opacity, {
+              toValue: 1,
+              duration: REVEAL_DURATION,
+              useNativeDriver: true,
+            }),
+            Animated.timing(v.translateY, {
+              toValue: 0,
+              duration: REVEAL_DURATION,
+              useNativeDriver: true,
+            }),
+          ]),
+        ]).start();
+      });
+    });
+  }, [animTrigger, sectionIndex, placeholder, wordSegments]);
+
   if (formatted) {
+    const showGradient = cardLayout.width > 0 && cardLayout.height > 0;
+    const icon = iconName ? (ICON_MAP[iconName] || ICON_MAP.summary) : null;
+    const showWordReveal = !placeholder && animTrigger > 0 && segmentAnims.length === wordSegments.length && wordSegments.length > 0;
+
+    const bodyContent = placeholder ? (
+      <View style={styles.formattedBody}>
+        <SkeletonLines widths={['100%', '88%', '60%']} gap={8} />
+      </View>
+    ) : showWordReveal ? (
+      <View style={[styles.formattedBody, styles.wordRow]}>
+        {wordSegments.map((seg, i) => {
+          if (seg.type === 'newline') {
+            return <View key={`nl-${i}`} style={styles.lineBreak} />;
+          }
+          const styleForType = seg.type === 'bold' ? styles.bold : seg.type === 'italic' ? styles.italic : seg.type === 'blue' ? styles.highlight : styles.body;
+          return (
+            <Animated.Text
+              key={`${i}-${seg.text}`}
+              style={[
+                styles.wordSegment,
+                styleForType,
+                {
+                  opacity: segmentAnims[i].opacity,
+                  transform: [{ translateY: segmentAnims[i].translateY }],
+                },
+              ]}
+            >
+              {seg.text}{i < wordSegments.length - 1 && wordSegments[i + 1].type !== 'newline' ? ' ' : ''}
+            </Animated.Text>
+          );
+        })}
+      </View>
+    ) : (
+      <View style={styles.formattedBody}>
+        {renderFormattedBody(body)}
+      </View>
+    );
     return (
-      <View style={styles.card}>
-        <Text style={styles.title}>{title}</Text>
-        <View style={styles.formattedBody}>{renderFormattedBody(body)}</View>
+      <View
+        style={styles.card}
+        onLayout={(e) => setCardLayout({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}
+      >
+        {showGradient && (
+          <Svg style={styles.cardGradientSvg} width={cardLayout.width} height={cardLayout.height} preserveAspectRatio="none">
+            <Defs>
+              <LinearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">
+                <Stop offset="0%" stopColor="#0d1014" />
+                <Stop offset="100%" stopColor={colors.surface} />
+              </LinearGradient>
+            </Defs>
+            <Rect x={0} y={0} width={cardLayout.width} height={cardLayout.height} fill={`url(#${gradientId})`} rx={borderRadius.md} ry={borderRadius.md} />
+          </Svg>
+        )}
+        {icon && (
+          <Ionicons name={icon} size={20} color={colors.textSecondary} style={styles.cardIcon} />
+        )}
+        <View style={styles.cardContent}>
+          <Text style={styles.title}>{title}</Text>
+          {bodyContent}
+        </View>
       </View>
     );
   }
@@ -200,7 +332,7 @@ export default function InsightCard({ title, body, highlight = '', formatted = f
   }
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, styles.cardPlain]}>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.body}>
         {segments.map((s) =>
@@ -219,11 +351,32 @@ export default function InsightCard({ title, body, highlight = '', formatted = f
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.surface,
+    position: 'relative',
     borderRadius: borderRadius.md,
     padding: spacing.md,
     marginHorizontal: spacing.md,
     marginBottom: spacing.md,
+    overflow: 'hidden',
+  },
+  cardGradientSvg: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  cardIcon: {
+    position: 'absolute',
+    top: spacing.sm,
+    right: spacing.sm,
+    opacity: 0.4,
+    zIndex: 1,
+  },
+  cardContent: {
+    zIndex: 1,
+  },
+  cardPlain: {
+    backgroundColor: colors.surface,
   },
   title: {
     ...typography.headline,
@@ -278,6 +431,20 @@ const styles = StyleSheet.create({
   },
   formattedBody: {
     marginTop: spacing.xs,
+  },
+  wordRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+  },
+  wordSegment: {
+    ...typography.body,
+    color: colors.textSecondary,
+    lineHeight: 24,
+  },
+  lineBreak: {
+    width: '100%',
+    height: 0,
   },
   bigHeading: {
     ...typography.title2,
