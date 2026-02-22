@@ -16,3 +16,8 @@ export const AI = {
   summaryShort: `${API_BASE_URL}/api/ai/summary-short`,
   insights: `${API_BASE_URL}/api/ai/insights`,
 };
+
+export const NOTIFICATIONS = {
+  register: `${API_BASE_URL}/api/notifications/register`,
+  cron: `${API_BASE_URL}/api/notifications/cron`,
+};

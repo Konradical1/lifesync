@@ -1,5 +1,11 @@
 {
   "buildCommand": "echo 'API only'",
   "outputDirectory": ".",
-  "installCommand": "npm install"
+  "installCommand": "npm install",
+  "crons": [
+    {
+      "path": "/api/notifications/cron",
+      "schedule": "0 * * * *"
+    }
+  ]
 }

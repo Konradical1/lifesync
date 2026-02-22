@@ -18,6 +18,7 @@ import { AuthProvider, useAuth } from './src/store/AuthContext';
 import { StoreProvider } from './src/store/useStore';
 import TabNavigator from './src/navigation/TabNavigator';
 import AuthStack from './src/navigation/AuthStack';
+import useNotifications from './src/hooks/useNotifications';
 
 const navTheme = {
   ...DarkTheme,
@@ -34,6 +35,7 @@ const navTheme = {
 
 function RootNavigator() {
   const { user, loading } = useAuth();
+  useNotifications(user?.id ?? null);
 
   if (loading) {
     return (
