@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ScrollView, Text, View, TouchableOpacity, Alert, ActivityIndicator, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Notifications from 'expo-notifications';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../store/AuthContext';
 import { colors, spacing, typography, fontFamilyMedium, fontFamilySemiBold, borderRadius } from '../theme/constants';
@@ -12,6 +13,32 @@ export default function SettingsScreen() {
   const [signingOut, setSigningOut] = useState(false);
 
   const displayName = user?.user_metadata?.display_name || user?.email || '';
+
+  const testMessages = [
+    { title: 'JournalX', body: '🍽️ "Did you eat today? Logging meals helps spot patterns."' },
+    { title: 'JournalX', body: '📝 "Take 2 minutes to reflect on your day."' },
+    { title: 'JournalX', body: '💧 "A little water might boost your energy right now."' },
+    { title: 'JournalX', body: '🌙 "How did today really feel?"' },
+  ];
+
+  async function handleTestNotification() {
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== 'granted') {
+      const { status: newStatus } = await Notifications.requestPermissionsAsync();
+      if (newStatus !== 'granted') {
+        Alert.alert('Permissions needed', 'Enable notifications in your device settings.');
+        return;
+      }
+    }
+
+    const msg = testMessages[Math.floor(Math.random() * testMessages.length)];
+    await Notifications.scheduleNotificationAsync({
+      content: { title: msg.title, body: msg.body, sound: 'default' },
+      trigger: { type: 'timeInterval', seconds: 2, repeats: false },
+    });
+
+    Alert.alert('Sent!', 'A test notification will appear in ~2 seconds.');
+  }
 
   async function handleSignOut() {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
@@ -64,10 +91,15 @@ export default function SettingsScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>App</Text>
-        <View style={styles.placeholder}>
-          <Text style={styles.placeholderText}>Settings options coming soon</Text>
-        </View>
+        <Text style={styles.sectionTitle}>Notifications</Text>
+        <TouchableOpacity
+          style={styles.testNotifButton}
+          onPress={handleTestNotification}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="notifications-outline" size={20} color={colors.accent} />
+          <Text style={styles.testNotifText}>Send Test Notification</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.section}>
@@ -150,6 +182,20 @@ const styles = StyleSheet.create({
   placeholderText: {
     fontSize: typography.footnote.fontSize,
     color: colors.textTertiary,
+  },
+  testNotifButton: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+  },
+  testNotifText: {
+    fontSize: typography.body.fontSize,
+    fontFamily: fontFamilySemiBold,
+    color: colors.accent,
   },
   signOutButton: {
     backgroundColor: colors.surface,

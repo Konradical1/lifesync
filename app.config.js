@@ -11,8 +11,10 @@ module.exports = {
   ...appJson,
   expo: {
     ...appJson.expo,
+    owner: 'konradical1',
     extra: {
       ...appJson.expo?.extra,
+      eas: { projectId: 'e2f2eda3-cdc4-47ff-b156-a0d2675629d0' },
       supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL || '',
       supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
     },

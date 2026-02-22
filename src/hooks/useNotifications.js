@@ -2,11 +2,13 @@ import { useEffect, useRef } from "react";
 import { Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
+import Constants from "expo-constants";
 import { registerPushToken } from "../api/notifications";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
   }),
@@ -63,8 +65,12 @@ export default function useNotifications(userId) {
       }
 
       try {
+        const projectId =
+          Constants.expoConfig?.extra?.eas?.projectId ??
+          Constants.easConfig?.projectId;
+
         const pushToken = await Notifications.getExpoPushTokenAsync({
-          projectId: undefined, // uses the project id from app.json automatically
+          projectId,
         });
 
         if (cancelled) return;
