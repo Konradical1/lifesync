@@ -29,7 +29,7 @@ export default function Header() {
   const todayLabel = useMemo(() => formatToday(), []);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + spacing.xs }]}> 
+    <View style={[styles.container, { paddingTop: insets.top + spacing.xs }]}>
       <View style={styles.topRow}>
         <View style={styles.logoPill}>
           <Image
