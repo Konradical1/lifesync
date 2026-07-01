@@ -1,7 +1,6 @@
-import React, { useMemo } from "react";
+import React from "react";
 import {
   View,
-  Text,
   Image,
   TouchableOpacity,
   StyleSheet,
@@ -15,18 +14,9 @@ import { colors, spacing, typography } from "../../theme/constants";
 const LOGO_HEIGHT = 28;
 const LOGO_WIDTH = 116;
 
-function formatToday() {
-  return new Date().toLocaleDateString(undefined, {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
-}
-
 export default function Header() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const todayLabel = useMemo(() => formatToday(), []);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.xs }]}>
@@ -50,11 +40,6 @@ export default function Header() {
             color={colors.textPrimary}
           />
         </TouchableOpacity>
-      </View>
-
-      <View style={styles.titleBlock}>
-        <Text style={styles.dateLabel}>{todayLabel}</Text>
-        <Text style={styles.title}>Today</Text>
       </View>
     </View>
   );
@@ -105,19 +90,5 @@ const styles = StyleSheet.create({
         elevation: 4,
       },
     }),
-  },
-  titleBlock: {
-    marginTop: spacing.lg,
-  },
-  dateLabel: {
-    ...typography.subhead,
-    color: colors.textSecondary,
-  },
-  title: {
-    marginTop: 2,
-    fontSize: 42,
-    lineHeight: 48,
-    fontFamily: typography.fontFamilyBold,
-    color: colors.textPrimary,
   },
 });

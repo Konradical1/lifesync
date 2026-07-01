@@ -1,10 +1,10 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import EventTypeRow from '../components/AddEvent/EventTypeRow';
-import { EVENT_TYPES, EVENT_ICON_NAMES, EVENT_LABELS } from '../store/mockData';
-import { colors, spacing, typography } from '../theme/constants';
+import React from "react";
+import { View, Text, StyleSheet } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import EventTypeRow from "../components/AddEvent/EventTypeRow";
+import { EVENT_TYPES, EVENT_ICON_NAMES, EVENT_LABELS } from "../store/mockData";
+import { colors, spacing, typography } from "../theme/constants";
 
 const TYPES = [
   EVENT_TYPES.sleep,
@@ -15,14 +15,14 @@ const TYPES = [
 ];
 
 const JOURNAL_ENTRY = {
-  id: 'journal',
-  iconName: 'book-outline',
-  label: 'Journal entry',
-  subtitle: 'Add a journal entry',
+  id: "journal",
+  iconName: "book-outline",
+  label: "Journal entry",
+  subtitle: "Add a journal entry",
   tintColor: colors.accent,
   onPress: (navigation) => {
-    navigation.navigate('HomeTab', {
-      screen: 'JournalHistory',
+    navigation.navigate("HomeTab", {
+      screen: "JournalHistory",
       params: { openAddJournal: true },
     });
   },
@@ -34,8 +34,9 @@ export default function EventTypeListScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.md }]}>
-      <Text style={styles.title}>Add <Text style={styles.titleHighlight}>Event</Text></Text>
-      <Text style={styles.subtitle}>Choose a category to log</Text>
+      <Text style={styles.eyebrow}>Capture</Text>
+      <Text style={styles.title}>Add Event</Text>
+      <Text style={styles.subtitle}>Choose what you want to log.</Text>
       <View style={styles.list}>
         {TYPES.map((type) => (
           <EventTypeRow
@@ -43,9 +44,11 @@ export default function EventTypeListScreen() {
             type={type}
             iconName={EVENT_ICON_NAMES[type]}
             label={EVENT_LABELS[type]}
-            onPress={() => navigation.navigate(
-              type.charAt(0).toUpperCase() + type.slice(1) + 'Event'
-            )}
+            onPress={() =>
+              navigation.navigate(
+                type.charAt(0).toUpperCase() + type.slice(1) + "Event",
+              )
+            }
             style={styles.row}
           />
         ))}
@@ -68,20 +71,24 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
     paddingHorizontal: 0,
-    paddingBottom: spacing.lg,
+    paddingBottom: 120,
+  },
+  eyebrow: {
+    ...typography.caption1,
+    color: colors.textTertiary,
+    textTransform: "uppercase",
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.xxs,
   },
   title: {
     fontSize: typography.largeTitle.fontSize,
-    fontWeight: typography.largeTitle.fontWeight,
+    fontFamily: typography.fontFamilyBold,
     color: colors.textPrimary,
     marginHorizontal: spacing.md,
     marginBottom: spacing.xs,
   },
-  titleHighlight: {
-    color: colors.accent,
-  },
   subtitle: {
-    fontSize: typography.body.fontSize,
+    ...typography.body,
     color: colors.textSecondary,
     marginHorizontal: spacing.md,
     marginBottom: spacing.lg,

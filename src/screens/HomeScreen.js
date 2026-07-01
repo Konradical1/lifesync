@@ -22,6 +22,7 @@ import RecentEventsList from "../components/Home/RecentEventsList";
 import { colors, spacing, typography } from "../theme/constants";
 
 const REFRESH_ANIMATION_MS = 700;
+const SCREEN_MARGIN = spacing.md;
 
 const quickActions = [
   {
@@ -119,6 +120,14 @@ function QuickActions({ navigation }) {
   );
 }
 
+function formatToday() {
+  return new Date().toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+}
+
 export default function HomeScreen() {
   const navigation = useNavigation();
   const [refreshing, setRefreshing] = useState(false);
@@ -160,6 +169,11 @@ export default function HomeScreen() {
 
   const listHeader = (
     <>
+      <View style={styles.titleBlock}>
+        <Text style={styles.dateLabel}>{formatToday()}</Text>
+        <Text style={styles.title}>Today</Text>
+      </View>
+
       <View style={styles.heroPanel}>
         <View style={styles.heroTopRow}>
           <View>
@@ -242,12 +256,26 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   content: {
-    paddingTop: spacing.xs,
-    paddingBottom: 56,
+    paddingTop: spacing.md,
+    paddingBottom: 120,
+  },
+  titleBlock: {
+    marginHorizontal: SCREEN_MARGIN,
+    marginBottom: spacing.xl,
+  },
+  dateLabel: {
+    ...typography.subhead,
+    color: colors.textSecondary,
+  },
+  title: {
+    marginTop: 2,
+    fontSize: 42,
+    lineHeight: 48,
+    fontFamily: typography.fontFamilyBold,
+    color: colors.textPrimary,
   },
   heroPanel: {
-    marginHorizontal: spacing.md,
-    marginTop: spacing.xs,
+    marginHorizontal: SCREEN_MARGIN,
     marginBottom: spacing.md,
     borderRadius: 28,
     borderWidth: 1,
@@ -298,8 +326,8 @@ const styles = StyleSheet.create({
   },
   quickActions: {
     flexDirection: "row",
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.xl,
+    marginHorizontal: SCREEN_MARGIN,
+    marginBottom: spacing.lg,
     padding: spacing.xs,
     borderRadius: 24,
     backgroundColor: "rgba(255,255,255,0.06)",
@@ -328,7 +356,8 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   sectionLabel: {
-    marginHorizontal: spacing.lg,
+    marginHorizontal: SCREEN_MARGIN,
+    marginTop: spacing.sm,
     marginBottom: spacing.xs,
   },
   sectionEyebrow: {

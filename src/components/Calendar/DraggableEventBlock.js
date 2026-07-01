@@ -1,17 +1,17 @@
-import React, { useRef, useCallback, useEffect } from 'react';
-import { View, PanResponder, StyleSheet } from 'react-native';
-import * as Haptics from 'expo-haptics';
-import EventCard from './EventCard';
+import React, { useRef, useCallback, useEffect } from "react";
+import { View, PanResponder, StyleSheet } from "react-native";
+import * as Haptics from "expo-haptics";
+import EventCard from "./EventCard";
 import {
   getEventStartAndDuration,
   minutesToTime24,
   rawMinutesToDateAndTime,
   toAbsoluteSlots,
   fromAbsoluteSlots,
-} from '../../utils/time';
-import { EVENT_TYPES } from '../../store/mockData';
-import { EVENT_TYPE_COLORS } from '../../theme/constants';
-import { colors } from '../../theme/constants';
+} from "../../utils/time";
+import { EVENT_TYPES } from "../../store/mockData";
+import { EVENT_TYPE_COLORS } from "../../theme/constants";
+import { colors } from "../../theme/constants";
 
 const HOUR_HEIGHT = 72;
 const HOLD_DURATION_MS = 350;
@@ -61,7 +61,10 @@ export default function DraggableEventBlock({
 }) {
   const dragActivated = useRef(false);
   const holdTimerRef = useRef(null);
-  const lastSnapped = useRef({ date: event.date, minutes: getEventStartAndDuration(event).startMinutes });
+  const lastSnapped = useRef({
+    date: event.date,
+    minutes: getEventStartAndDuration(event).startMinutes,
+  });
   const gestureStartMinutes = useRef(0);
   const eventRef = useRef(event);
   const onPressRef = useRef(onPress);
@@ -100,7 +103,10 @@ export default function DraggableEventBlock({
         dragActivated.current = false;
         const ev = eventRef.current;
         gestureStartMinutes.current = getEventStartAndDuration(ev).startMinutes;
-        lastSnapped.current = { date: ev.date, minutes: gestureStartMinutes.current };
+        lastSnapped.current = {
+          date: ev.date,
+          minutes: gestureStartMinutes.current,
+        };
         holdTimerRef.current = setTimeout(() => {
           holdTimerRef.current = null;
           dragActivated.current = true;
@@ -114,7 +120,10 @@ export default function DraggableEventBlock({
         const baseMinutes = gestureStartMinutes.current;
         const deltaMinutes = (dy / HOUR_HEIGHT) * 60;
         const rawMinutes = baseMinutes + deltaMinutes;
-        const { date: newDate, minutes: newMinutes } = rawMinutesToDateAndTime(ev.date, rawMinutes);
+        const { date: newDate, minutes: newMinutes } = rawMinutesToDateAndTime(
+          ev.date,
+          rawMinutes,
+        );
         const last = lastSnapped.current;
 
         if (newDate === last.date && newMinutes === last.minutes) return;
@@ -124,7 +133,11 @@ export default function DraggableEventBlock({
         const lastSlots = toAbsoluteSlots(refDate, last.date, last.minutes);
         const newSlots = toAbsoluteSlots(refDate, newDate, newMinutes);
         const step = newSlots > lastSlots ? 1 : -1;
-        for (let s = lastSlots + step; step > 0 ? s <= newSlots : s >= newSlots; s += step) {
+        for (
+          let s = lastSlots + step;
+          step > 0 ? s <= newSlots : s >= newSlots;
+          s += step
+        ) {
           const { date: d, minutes: m } = fromAbsoluteSlots(refDate, s);
           lastSnapped.current = { date: d, minutes: m };
           triggerHaptic();
@@ -157,11 +170,12 @@ export default function DraggableEventBlock({
           onDragEndRef.current?.();
         }
       },
-    })
+    }),
   ).current;
 
   const eventColor = EVENT_TYPE_COLORS[event.type] ?? colors.accent;
   const isThin = height < 56;
+  const columnWidth = 100 / Math.max(totalColumns, 1);
 
   return (
     <View
@@ -172,9 +186,9 @@ export default function DraggableEventBlock({
           top,
           height,
           borderLeftColor: eventColor,
-          left: `${(100 * columnIndex) / totalColumns}%`,
-          width: `${100 / totalColumns - 1}%`,
-          marginRight: 2,
+          left: `${columnWidth * columnIndex}%`,
+          width: `${columnWidth}%`,
+          paddingRight: totalColumns > 1 ? 4 : 0,
         },
       ]}
     >
@@ -192,9 +206,8 @@ export default function DraggableEventBlock({
 
 const styles = StyleSheet.create({
   block: {
-    position: 'absolute',
-    borderRadius: 6,
-    overflow: 'hidden',
-    borderLeftWidth: 4,
+    position: "absolute",
+    borderRadius: 12,
+    overflow: "hidden",
   },
 });

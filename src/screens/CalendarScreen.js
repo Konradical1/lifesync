@@ -1,24 +1,33 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { View, Text, FlatList, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRoute, useNavigation } from '@react-navigation/native';
-import { useEvents, useStore } from '../store/useStore';
-import DayView from '../components/Calendar/DayView';
-import EventEditSheet from '../components/Calendar/EventEditSheet';
-import MoodEditSheet from '../components/Calendar/MoodEditSheet';
-import { colors, spacing, typography } from '../theme/constants';
+import React, { useRef, useEffect, useState, useCallback } from "react";
+import {
+  View,
+  Text,
+  FlatList,
+  StyleSheet,
+  Dimensions,
+  TouchableOpacity,
+  Platform,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRoute, useNavigation } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
+import { useEvents, useStore } from "../store/useStore";
+import DayView from "../components/Calendar/DayView";
+import EventEditSheet from "../components/Calendar/EventEditSheet";
+import MoodEditSheet from "../components/Calendar/MoodEditSheet";
+import { colors, spacing, typography } from "../theme/constants";
 
-const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 function formatDateKey(d) {
   const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
 
 function getDateFromKey(key) {
-  const [y, m, d] = key.split('-').map(Number);
+  const [y, m, d] = key.split("-").map(Number);
   return new Date(y, m - 1, d);
 }
 
@@ -43,13 +52,15 @@ export default function CalendarScreen() {
   const moodEntries = state.moodEntries;
   const flatListRef = useRef(null);
 
-  const mode = route.params?.mode ?? 'events';
-  const isMoodMode = mode === 'mood';
+  const mode = route.params?.mode ?? "events";
+  const isMoodMode = mode === "mood";
 
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [selectedMood, setSelectedMood] = useState(null);
   const [dates] = useState(() => generateDatesAround(new Date()));
-  const [initialIndex, setInitialIndex] = useState(Math.floor(dates.length / 2));
+  const [initialIndex, setInitialIndex] = useState(
+    Math.floor(dates.length / 2),
+  );
   const [focusDate, setFocusDate] = useState(null);
   const [focusEventId, setFocusEventId] = useState(null);
   const [focusMoodId, setFocusMoodId] = useState(null);
@@ -65,7 +76,7 @@ export default function CalendarScreen() {
         flatListRef.current?.scrollToIndex({ index: idx, animated: true });
       }
     },
-    [dates]
+    [dates],
   );
 
   const routeFocusDate = route.params?.focusDate;
@@ -88,9 +99,21 @@ export default function CalendarScreen() {
         const m = moodEntries.find((mo) => mo.id === routeFocusMoodId);
         if (m) setSelectedMood(m);
       }
-      navigation.setParams({ focusDate: undefined, focusEventId: undefined, focusMoodId: undefined });
+      navigation.setParams({
+        focusDate: undefined,
+        focusEventId: undefined,
+        focusMoodId: undefined,
+      });
     }
-  }, [routeFocusDate, routeFocusEventId, routeFocusMoodId, dates, events, moodEntries, navigation]);
+  }, [
+    routeFocusDate,
+    routeFocusEventId,
+    routeFocusMoodId,
+    dates,
+    events,
+    moodEntries,
+    navigation,
+  ]);
 
   const handleEventPress = useCallback((event) => {
     setSelectedEvent(event);
@@ -125,60 +148,119 @@ export default function CalendarScreen() {
       const isToday = date === formatDateKey(new Date());
 
       return (
-        <View style={[styles.dayPage, { width: Dimensions.get('window').width }]}>
+        <View
+          style={[styles.dayPage, { width: Dimensions.get("window").width }]}
+        >
           <View style={styles.dayHeader}>
-            <View>
-              <Text style={styles.dayName}>{dayName}</Text>
-              <Text style={[styles.dayNum, isToday && styles.dayNumToday]}>{dayNum}</Text>
+            <View style={styles.dateCluster}>
               <Text style={styles.monthYear}>
-                {d.toLocaleString('default', { month: 'long' })} {d.getFullYear()}
+                {d.toLocaleString("default", { month: "long" })}{" "}
+                {d.getFullYear()}
               </Text>
+              <View style={styles.dayTitleRow}>
+                <Text style={styles.dayName}>{dayName}</Text>
+                <Text style={[styles.dayNum, isToday && styles.dayNumToday]}>
+                  {dayNum}
+                </Text>
+              </View>
             </View>
-            {isMoodMode ? (
+            <View style={styles.modeSwitch}>
               <TouchableOpacity
-                onPress={() => navigation.setParams({ mode: 'events' })}
-                style={styles.modeLabel}
+                onPress={() => navigation.setParams({ mode: "events" })}
+                style={[
+                  styles.modeOption,
+                  !isMoodMode && styles.modeOptionActive,
+                ]}
+                activeOpacity={0.85}
               >
-                <Text style={styles.modeLabelText}>← Events</Text>
+                <Ionicons
+                  name="calendar-outline"
+                  size={15}
+                  color={!isMoodMode ? colors.background : colors.textSecondary}
+                />
+                <Text
+                  style={[
+                    styles.modeLabelText,
+                    !isMoodMode && styles.modeLabelTextActive,
+                  ]}
+                >
+                  Events
+                </Text>
               </TouchableOpacity>
-            ) : (
               <TouchableOpacity
-                onPress={() => navigation.setParams({ mode: 'mood' })}
-                style={styles.modeLabel}
+                onPress={() => navigation.setParams({ mode: "mood" })}
+                style={[
+                  styles.modeOption,
+                  isMoodMode && styles.modeOptionActive,
+                ]}
+                activeOpacity={0.85}
               >
-                <Text style={styles.modeLabelText}>Mood</Text>
+                <Ionicons
+                  name="happy-outline"
+                  size={15}
+                  color={isMoodMode ? colors.background : colors.textSecondary}
+                />
+                <Text
+                  style={[
+                    styles.modeLabelText,
+                    isMoodMode && styles.modeLabelTextActive,
+                  ]}
+                >
+                  Mood
+                </Text>
               </TouchableOpacity>
-            )}
+            </View>
           </View>
-          <DayView
-            date={date}
-            events={events}
-            moodEntries={moodEntries}
-            mode={mode}
-            onEventPress={handleEventPress}
-            onMoodPress={handleMoodPress}
-            focusedEventId={!isMoodMode && date === focusDate ? focusEventId : null}
-            focusedMoodId={isMoodMode && date === focusDate ? focusMoodId : null}
-            onFocusedEventScrolled={handleFocusedEventScrolled}
-            onFocusedMoodScrolled={handleFocusedMoodScrolled}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-            onEventMovedToDay={handleEventMovedToDay}
-            onMoodMovedToDay={handleEventMovedToDay}
-          />
+          <View style={styles.timelineShell}>
+            <DayView
+              date={date}
+              events={events}
+              moodEntries={moodEntries}
+              mode={mode}
+              onEventPress={handleEventPress}
+              onMoodPress={handleMoodPress}
+              focusedEventId={
+                !isMoodMode && date === focusDate ? focusEventId : null
+              }
+              focusedMoodId={
+                isMoodMode && date === focusDate ? focusMoodId : null
+              }
+              onFocusedEventScrolled={handleFocusedEventScrolled}
+              onFocusedMoodScrolled={handleFocusedMoodScrolled}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+              onEventMovedToDay={handleEventMovedToDay}
+              onMoodMovedToDay={handleEventMovedToDay}
+            />
+          </View>
         </View>
       );
     },
-    [events, moodEntries, mode, isMoodMode, handleEventPress, handleMoodPress, focusDate, focusEventId, focusMoodId, handleFocusedEventScrolled, handleFocusedMoodScrolled, handleDragStart, handleDragEnd, handleEventMovedToDay]
+    [
+      events,
+      moodEntries,
+      mode,
+      isMoodMode,
+      handleEventPress,
+      handleMoodPress,
+      focusDate,
+      focusEventId,
+      focusMoodId,
+      handleFocusedEventScrolled,
+      handleFocusedMoodScrolled,
+      handleDragStart,
+      handleDragEnd,
+      handleEventMovedToDay,
+    ],
   );
 
   const getItemLayout = useCallback(
     (_, index) => ({
-      length: Dimensions.get('window').width,
-      offset: Dimensions.get('window').width * index,
+      length: Dimensions.get("window").width,
+      offset: Dimensions.get("window").width * index,
       index,
     }),
-    []
+    [],
   );
 
   return (
@@ -203,16 +285,10 @@ export default function CalendarScreen() {
         scrollEnabled={!isDragging}
       />
       {selectedEvent && (
-        <EventEditSheet
-          event={selectedEvent}
-          onClose={handleCloseSheet}
-        />
+        <EventEditSheet event={selectedEvent} onClose={handleCloseSheet} />
       )}
       {selectedMood && (
-        <MoodEditSheet
-          mood={selectedMood}
-          onClose={handleCloseSheet}
-        />
+        <MoodEditSheet mood={selectedMood} onClose={handleCloseSheet} />
       )}
     </View>
   );
@@ -224,47 +300,100 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   weekRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: spacing.sm,
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
     paddingHorizontal: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
   },
   weekLabel: {
-    fontSize: typography.caption1.fontSize,
+    ...typography.caption1,
+    fontFamily: typography.fontFamilySemiBold,
     color: colors.textSecondary,
   },
   dayPage: {
+    flex: 1,
     paddingHorizontal: spacing.md,
   },
   dayHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingVertical: spacing.sm,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
+    gap: spacing.md,
+  },
+  dateCluster: {
+    flex: 1,
+  },
+  dayTitleRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: spacing.sm,
   },
   dayName: {
-    fontSize: typography.footnote.fontSize,
+    fontSize: typography.title3.fontSize,
+    fontFamily: typography.fontFamilyBold,
     color: colors.textSecondary,
   },
   dayNum: {
-    fontSize: typography.largeTitle.fontSize,
-    fontWeight: typography.largeTitle.fontWeight,
+    fontSize: 48,
+    lineHeight: 54,
+    fontFamily: typography.fontFamilyBold,
     color: colors.textPrimary,
   },
   dayNumToday: {
     color: colors.accent,
   },
   monthYear: {
-    fontSize: typography.footnote.fontSize,
+    ...typography.footnote,
+    fontFamily: typography.fontFamilySemiBold,
     color: colors.textTertiary,
   },
-  modeLabel: {
-    marginTop: 4,
+  modeSwitch: {
+    flexDirection: "row",
+    padding: 4,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+    backgroundColor: "rgba(255,255,255,0.055)",
+  },
+  modeOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: 14,
+  },
+  modeOptionActive: {
+    backgroundColor: colors.accent,
   },
   modeLabelText: {
-    fontSize: typography.caption1.fontSize,
-    color: colors.accent,
+    ...typography.caption1,
+    color: colors.textSecondary,
+  },
+  modeLabelTextActive: {
+    color: colors.background,
+  },
+  timelineShell: {
+    flex: 1,
+    minHeight: 1,
+    borderRadius: 28,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+    backgroundColor: "rgba(255,255,255,0.045)",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 16 },
+        shadowOpacity: 0.18,
+        shadowRadius: 28,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
 });

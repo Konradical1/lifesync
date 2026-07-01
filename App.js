@@ -1,9 +1,9 @@
-import React from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { NavigationContainer, DarkTheme } from '@react-navigation/native';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import React from "react";
+import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { StatusBar } from "expo-status-bar";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { NavigationContainer, DarkTheme } from "@react-navigation/native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import {
   useFonts,
   Inter_400Regular,
@@ -12,13 +12,13 @@ import {
   Inter_700Bold,
   Inter_500Medium_Italic,
   Inter_600SemiBold_Italic,
-} from '@expo-google-fonts/inter';
-import { colors } from './src/theme/constants';
-import { AuthProvider, useAuth } from './src/store/AuthContext';
-import { StoreProvider } from './src/store/useStore';
-import TabNavigator from './src/navigation/TabNavigator';
-import AuthStack from './src/navigation/AuthStack';
-import useNotifications from './src/hooks/useNotifications';
+} from "@expo-google-fonts/inter";
+import { colors } from "./src/theme/constants";
+import { AuthProvider, useAuth } from "./src/store/AuthContext";
+import { StoreProvider } from "./src/store/useStore";
+import TabNavigator from "./src/navigation/TabNavigator";
+import AuthStack from "./src/navigation/AuthStack";
+import useNotifications from "./src/hooks/useNotifications";
 
 const navTheme = {
   ...DarkTheme,
@@ -35,7 +35,7 @@ const navTheme = {
 
 function RootNavigator() {
   const { user, loading } = useAuth();
-  useNotifications(user?.id ?? null);
+  useNotifications(user?.isLocalBypass ? null : (user?.id ?? null));
 
   if (loading) {
     return (
@@ -91,8 +91,8 @@ export default function App() {
 const styles = StyleSheet.create({
   loading: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     backgroundColor: colors.background,
   },
 });

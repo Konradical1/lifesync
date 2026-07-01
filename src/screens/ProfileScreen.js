@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef } from "react";
 import {
   ScrollView,
   FlatList,
@@ -11,65 +11,85 @@ import {
   Platform,
   Modal,
   Pressable,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
-import { useStore } from '../store/useStore';
-import { suggestGoals } from '../utils/goalSuggest';
-import { colors, spacing, typography, borderRadius } from '../theme/constants';
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
+import { useStore } from "../store/useStore";
+import { suggestGoals } from "../utils/goalSuggest";
+import { colors, spacing, typography, borderRadius } from "../theme/constants";
 
-import ProfileHeader from '../components/Profile/ProfileHeader';
-import QuickStatsRow from '../components/Profile/QuickStatsRow';
-import WeightCard from '../components/Profile/WeightCard';
-import TrendsCard from '../components/Profile/TrendsCard';
-import HealthNotesCard from '../components/Profile/HealthNotesCard';
-import AboutYouSection from '../components/Profile/AboutYouSection';
-import WeightPicker from '../components/Profile/WeightPicker';
+import ProfileHeader from "../components/Profile/ProfileHeader";
+import QuickStatsRow from "../components/Profile/QuickStatsRow";
+import WeightCard from "../components/Profile/WeightCard";
+import TrendsCard from "../components/Profile/TrendsCard";
+import HealthNotesCard from "../components/Profile/HealthNotesCard";
+import AboutYouSection from "../components/Profile/AboutYouSection";
+import WeightPicker from "../components/Profile/WeightPicker";
 
 const FIELD_CONFIG = {
-  name: { label: 'Name', placeholder: 'Your name', keyboard: 'default' },
-  age: { label: 'Age', placeholder: 'e.g. 28', keyboard: 'numeric' },
-  height: { label: 'Height', placeholder: "e.g. 5'10\" or 178 cm", keyboard: 'default' },
-  gender: { label: 'Gender', placeholder: 'e.g. Male, Female, Non-binary', keyboard: 'default' },
-  calorieGoal: { label: 'Daily Calorie Goal', placeholder: 'e.g. 2200', keyboard: 'numeric' },
-  proteinGoal: { label: 'Daily Protein Goal (g)', placeholder: 'e.g. 120', keyboard: 'numeric' },
-  waterGoalOz: { label: 'Daily Water Goal (oz)', placeholder: 'e.g. 64', keyboard: 'numeric' },
+  name: { label: "Name", placeholder: "Your name", keyboard: "default" },
+  age: { label: "Age", placeholder: "e.g. 28", keyboard: "numeric" },
+  height: {
+    label: "Height",
+    placeholder: "e.g. 5'10\" or 178 cm",
+    keyboard: "default",
+  },
+  gender: {
+    label: "Gender",
+    placeholder: "e.g. Male, Female, Non-binary",
+    keyboard: "default",
+  },
+  calorieGoal: {
+    label: "Daily Calorie Goal",
+    placeholder: "e.g. 2200",
+    keyboard: "numeric",
+  },
+  proteinGoal: {
+    label: "Daily Protein Goal (g)",
+    placeholder: "e.g. 120",
+    keyboard: "numeric",
+  },
+  waterGoalOz: {
+    label: "Daily Water Goal (oz)",
+    placeholder: "e.g. 64",
+    keyboard: "numeric",
+  },
   medicalConditions: {
-    label: 'Health Notes',
-    placeholder: 'Any current conditions, allergies, medications, etc.',
-    keyboard: 'default',
+    label: "Health Notes",
+    placeholder: "Any current conditions, allergies, medications, etc.",
+    keyboard: "default",
     multiline: true,
   },
   aiContext: {
-    label: 'AI Context',
+    label: "AI Context",
     placeholder:
-      'Tell the AI anything about yourself — dietary preferences, fitness goals, health history, lifestyle context…',
-    keyboard: 'default',
+      "Tell the AI anything about yourself — dietary preferences, fitness goals, health history, lifestyle context…",
+    keyboard: "default",
     multiline: true,
   },
 };
 
 function formatLogDate(iso) {
-  if (!iso) return '';
+  if (!iso) return "";
   const d = new Date(iso);
-  return d.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
   });
 }
 
 function generateId() {
-  return 'wl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
+  return "wl_" + Date.now() + "_" + Math.random().toString(36).slice(2, 9);
 }
 
 function formatDateKey(d) {
   const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
 
@@ -81,15 +101,15 @@ export default function ProfileScreen() {
 
   // Text field editor state
   const [editingField, setEditingField] = useState(null);
-  const [editValue, setEditValue] = useState('');
+  const [editValue, setEditValue] = useState("");
   const [isLargeModal, setIsLargeModal] = useState(false);
-  const [suggestError, setSuggestError] = useState('');
+  const [suggestError, setSuggestError] = useState("");
   const inputRef = useRef(null);
 
   // Weight picker state
   const [weightPickerVisible, setWeightPickerVisible] = useState(false);
   const [weightPickerField, setWeightPickerField] = useState(null); // 'weight' | 'weightGoal'
-  const [pickerValue, setPickerValue] = useState('150');
+  const [pickerValue, setPickerValue] = useState("150");
 
   // Weight history modal state
   const [weightHistoryVisible, setWeightHistoryVisible] = useState(false);
@@ -98,26 +118,26 @@ export default function ProfileScreen() {
   const saveField = useCallback(
     (field, value) => {
       dispatch({
-        type: 'UPDATE_PROFILE',
+        type: "UPDATE_PROFILE",
         payload: { [field]: value.trim() },
       });
     },
-    [dispatch]
+    [dispatch],
   );
 
   const openFieldEditor = useCallback(
     (field, large = false) => {
-      if (field === 'weight' || field === 'weightGoal') {
+      if (field === "weight" || field === "weightGoal") {
         setWeightPickerField(field);
-        setPickerValue(profile[field] || '150');
+        setPickerValue(profile[field] || "150");
         setWeightPickerVisible(true);
         return;
       }
-      setEditValue(profile[field] ?? '');
+      setEditValue(profile[field] ?? "");
       setEditingField(field);
       setIsLargeModal(large || FIELD_CONFIG[field]?.multiline);
     },
-    [profile]
+    [profile],
   );
 
   const closeFieldEditor = useCallback(() => {
@@ -125,16 +145,16 @@ export default function ProfileScreen() {
       saveField(editingField, editValue);
     }
     setEditingField(null);
-    setEditValue('');
+    setEditValue("");
     setIsLargeModal(false);
   }, [editingField, editValue, saveField]);
 
   // --- Weight picker ---
   const handleWeightPickerDone = useCallback(() => {
     const numStr = pickerValue.trim();
-    if (weightPickerField === 'weight') {
+    if (weightPickerField === "weight") {
       dispatch({
-        type: 'ADD_WEIGHT_LOG',
+        type: "ADD_WEIGHT_LOG",
         payload: {
           id: generateId(),
           weight: numStr,
@@ -142,9 +162,9 @@ export default function ProfileScreen() {
           createdAt: new Date().toISOString(),
         },
       });
-    } else if (weightPickerField === 'weightGoal') {
+    } else if (weightPickerField === "weightGoal") {
       dispatch({
-        type: 'UPDATE_PROFILE',
+        type: "UPDATE_PROFILE",
         payload: { weightGoal: numStr },
       });
     }
@@ -159,7 +179,7 @@ export default function ProfileScreen() {
 
   // --- Suggest goals ---
   const handleSuggestGoals = useCallback(() => {
-    setSuggestError('');
+    setSuggestError("");
     const result = suggestGoals({
       age: profile.age,
       height: profile.height,
@@ -170,13 +190,13 @@ export default function ProfileScreen() {
       return;
     }
     dispatch({
-      type: 'UPDATE_PROFILE',
+      type: "UPDATE_PROFILE",
       payload: {
         calorieGoal: String(result.calorieGoal),
         proteinGoal: String(result.proteinGoal),
       },
     });
-    setSuggestError('');
+    setSuggestError("");
   }, [profile.age, profile.height, profile.weight, dispatch]);
 
   const config = editingField ? FIELD_CONFIG[editingField] : null;
@@ -184,7 +204,6 @@ export default function ProfileScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Header bar */}
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
@@ -193,7 +212,10 @@ export default function ProfileScreen() {
         >
           <Ionicons name="chevron-back" size={24} color={colors.accent} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Profile</Text>
+        <View style={styles.headerTitleWrap}>
+          <Text style={styles.headerEyebrow}>About you</Text>
+          <Text style={styles.headerTitle}>Profile</Text>
+        </View>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -210,12 +232,15 @@ export default function ProfileScreen() {
           weight={profile.weight}
         />
 
-        <QuickStatsRow profile={profile} onEditField={(key) => openFieldEditor(key)} />
+        <QuickStatsRow
+          profile={profile}
+          onEditField={(key) => openFieldEditor(key)}
+        />
 
         <WeightCard
           weight={profile.weight}
           weightGoal={profile.weightGoal}
-          onUpdateWeight={() => openFieldEditor('weight')}
+          onUpdateWeight={() => openFieldEditor("weight")}
           onViewHistory={() => setWeightHistoryVisible(true)}
         />
 
@@ -227,7 +252,7 @@ export default function ProfileScreen() {
 
         <HealthNotesCard
           medicalConditions={profile.medicalConditions}
-          onEdit={() => openFieldEditor('medicalConditions', true)}
+          onEdit={() => openFieldEditor("medicalConditions", true)}
         />
 
         <AboutYouSection
@@ -236,9 +261,14 @@ export default function ProfileScreen() {
         />
 
         <View style={styles.suggestWrap}>
-          <TouchableOpacity style={styles.suggestButton} onPress={handleSuggestGoals}>
+          <TouchableOpacity
+            style={styles.suggestButton}
+            onPress={handleSuggestGoals}
+          >
             <Ionicons name="sparkles-outline" size={16} color={colors.accent} />
-            <Text style={styles.suggestButtonText}>Suggest goals from profile</Text>
+            <Text style={styles.suggestButtonText}>
+              Suggest goals from profile
+            </Text>
           </TouchableOpacity>
           {suggestError ? (
             <Text style={styles.suggestError}>{suggestError}</Text>
@@ -255,7 +285,7 @@ export default function ProfileScreen() {
       >
         <Pressable style={styles.modalOverlay} onPress={closeFieldEditor}>
           <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
             style={styles.modalKeyboard}
           >
             <Pressable
@@ -268,7 +298,7 @@ export default function ProfileScreen() {
             >
               <View style={styles.modalHandle} />
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>{config?.label ?? ''}</Text>
+                <Text style={styles.modalTitle}>{config?.label ?? ""}</Text>
                 <TouchableOpacity onPress={closeFieldEditor}>
                   <Text style={styles.modalDone}>Done</Text>
                 </TouchableOpacity>
@@ -283,12 +313,12 @@ export default function ProfileScreen() {
                 onChangeText={setEditValue}
                 placeholder={config?.placeholder}
                 placeholderTextColor={colors.textTertiary}
-                keyboardType={config?.keyboard ?? 'default'}
+                keyboardType={config?.keyboard ?? "default"}
                 multiline={isLargeModal}
                 autoFocus
-                returnKeyType={isLargeModal ? 'default' : 'done'}
+                returnKeyType={isLargeModal ? "default" : "done"}
                 onSubmitEditing={isLargeModal ? undefined : closeFieldEditor}
-                textAlignVertical={isLargeModal ? 'top' : 'center'}
+                textAlignVertical={isLargeModal ? "top" : "center"}
               />
             </Pressable>
           </KeyboardAvoidingView>
@@ -303,7 +333,10 @@ export default function ProfileScreen() {
         onRequestClose={closeWeightPicker}
       >
         <View style={styles.modalOverlay}>
-          <Pressable style={styles.modalOverlayDismiss} onPress={closeWeightPicker} />
+          <Pressable
+            style={styles.modalOverlayDismiss}
+            onPress={closeWeightPicker}
+          />
           <View
             style={[
               styles.modalContent,
@@ -314,16 +347,15 @@ export default function ProfileScreen() {
             <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                {weightPickerField === 'weightGoal' ? 'Weight Goal' : 'Update Weight'}
+                {weightPickerField === "weightGoal"
+                  ? "Weight Goal"
+                  : "Update Weight"}
               </Text>
               <TouchableOpacity onPress={handleWeightPickerDone}>
                 <Text style={styles.modalDone}>Done</Text>
               </TouchableOpacity>
             </View>
-            <WeightPicker
-              value={pickerValue}
-              onValueChange={setPickerValue}
-            />
+            <WeightPicker value={pickerValue} onValueChange={setPickerValue} />
           </View>
         </View>
       </Modal>
@@ -357,9 +389,14 @@ export default function ProfileScreen() {
 
             {weightLogs.length === 0 ? (
               <View style={styles.historyEmpty}>
-                <Ionicons name="scale-outline" size={36} color={colors.textTertiary} />
+                <Ionicons
+                  name="scale-outline"
+                  size={36}
+                  color={colors.textTertiary}
+                />
                 <Text style={styles.historyEmptyText}>
-                  No weight logs yet. Tap "Update weight" to add your first entry.
+                  No weight logs yet. Tap "Update weight" to add your first
+                  entry.
                 </Text>
               </View>
             ) : (
@@ -376,35 +413,45 @@ export default function ProfileScreen() {
                     ]}
                   >
                     <View style={styles.historyRowLeft}>
-                      <Text style={styles.historyWeight}>{item.weight} lbs</Text>
+                      <Text style={styles.historyWeight}>
+                        {item.weight} lbs
+                      </Text>
                       <Text style={styles.historyDate}>
                         {formatLogDate(item.createdAt)}
                       </Text>
                     </View>
-                    {index > 0 && (() => {
-                      const prev = parseInt(weightLogs[index - 1].weight, 10);
-                      const curr = parseInt(item.weight, 10);
-                      if (isNaN(prev) || isNaN(curr)) return null;
-                      const diff = prev - curr;
-                      if (diff === 0) return null;
-                      return (
-                        <View style={styles.historyDiff}>
-                          <Ionicons
-                            name={diff > 0 ? 'arrow-up' : 'arrow-down'}
-                            size={14}
-                            color={diff > 0 ? colors.eventMeds : colors.eventFood}
-                          />
-                          <Text
-                            style={[
-                              styles.historyDiffText,
-                              { color: diff > 0 ? colors.eventMeds : colors.eventFood },
-                            ]}
-                          >
-                            {Math.abs(diff)} lbs
-                          </Text>
-                        </View>
-                      );
-                    })()}
+                    {index > 0 &&
+                      (() => {
+                        const prev = parseInt(weightLogs[index - 1].weight, 10);
+                        const curr = parseInt(item.weight, 10);
+                        if (isNaN(prev) || isNaN(curr)) return null;
+                        const diff = prev - curr;
+                        if (diff === 0) return null;
+                        return (
+                          <View style={styles.historyDiff}>
+                            <Ionicons
+                              name={diff > 0 ? "arrow-up" : "arrow-down"}
+                              size={14}
+                              color={
+                                diff > 0 ? colors.eventMeds : colors.eventFood
+                              }
+                            />
+                            <Text
+                              style={[
+                                styles.historyDiffText,
+                                {
+                                  color:
+                                    diff > 0
+                                      ? colors.eventMeds
+                                      : colors.eventFood,
+                                },
+                              ]}
+                            >
+                              {Math.abs(diff)} lbs
+                            </Text>
+                          </View>
+                        );
+                      })()}
                   </View>
                 )}
               />
@@ -422,31 +469,45 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.lg,
   },
   backButton: {
-    width: 36,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.055)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  headerTitleWrap: {
+    flex: 1,
+    alignItems: "center",
+  },
+  headerEyebrow: {
+    ...typography.caption1,
+    color: colors.textTertiary,
+    textTransform: "uppercase",
   },
   headerTitle: {
-    fontSize: typography.headline.fontSize,
-    fontWeight: typography.headline.fontWeight,
+    fontSize: typography.title1.fontSize,
     fontFamily: typography.fontFamilyBold,
     color: colors.textPrimary,
   },
   headerSpacer: {
-    width: 36,
+    width: 40,
   },
   scroll: {
     flex: 1,
   },
   content: {
-    paddingBottom: spacing.xxl,
+    paddingBottom: 140,
   },
 
   /* Suggest Goals */
@@ -455,64 +516,66 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   suggestButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: spacing.xs,
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
+    backgroundColor: "rgba(88,166,255,0.1)",
+    borderRadius: 20,
     paddingVertical: spacing.sm + 2,
     borderWidth: 1,
-    borderColor: colors.accent + '40',
+    borderColor: colors.accent + "40",
   },
   suggestButtonText: {
     fontSize: typography.callout.fontSize,
     color: colors.accent,
-    fontWeight: '600',
+    fontWeight: "600",
     fontFamily: typography.fontFamilySemiBold,
   },
   suggestError: {
     fontSize: typography.footnote.fontSize,
     color: colors.eventMeds,
     marginTop: spacing.xs,
-    textAlign: 'center',
+    textAlign: "center",
   },
 
   /* Shared Modal */
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "flex-end",
   },
   modalOverlayDismiss: {
     flex: 1,
   },
   modalKeyboard: {
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: borderRadius.lg,
-    borderTopRightRadius: borderRadius.lg,
+    backgroundColor: "#151A21",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
     minHeight: 160,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
   },
   modalContentLarge: {
     minHeight: 300,
   },
   modalHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.textTertiary,
-    alignSelf: 'center',
+    width: 42,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: colors.border,
+    alignSelf: "center",
     marginBottom: spacing.sm,
   },
   modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: spacing.sm,
   },
   modalTitle: {
@@ -524,7 +587,7 @@ const styles = StyleSheet.create({
   modalDone: {
     fontSize: typography.body.fontSize,
     color: colors.accent,
-    fontWeight: '600',
+    fontWeight: "600",
     fontFamily: typography.fontFamilySemiBold,
   },
   modalInput: {
@@ -540,27 +603,27 @@ const styles = StyleSheet.create({
   },
   modalInputLarge: {
     minHeight: 180,
-    textAlignVertical: 'top',
+    textAlignVertical: "top",
   },
 
   /* Weight Picker Modal */
   pickerModalContent: {
     minHeight: 320,
-    alignItems: 'stretch',
+    alignItems: "stretch",
   },
 
   /* Weight History Modal */
   historyModalContent: {
     minHeight: 300,
-    maxHeight: '70%',
+    maxHeight: "70%",
   },
   historyList: {
     flex: 1,
   },
   historyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingVertical: spacing.sm + 2,
     paddingHorizontal: spacing.xs,
   },
@@ -573,7 +636,7 @@ const styles = StyleSheet.create({
   },
   historyWeight: {
     fontSize: typography.body.fontSize,
-    fontWeight: '600',
+    fontWeight: "600",
     fontFamily: typography.fontFamilySemiBold,
     color: colors.textPrimary,
   },
@@ -584,18 +647,18 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   historyDiff: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 3,
   },
   historyDiffText: {
     fontSize: typography.footnote.fontSize,
-    fontWeight: '600',
+    fontWeight: "600",
     fontFamily: typography.fontFamilySemiBold,
   },
   historyEmpty: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: spacing.xl,
     gap: spacing.sm,
   },
@@ -603,7 +666,7 @@ const styles = StyleSheet.create({
     fontSize: typography.subhead.fontSize,
     fontFamily: typography.fontFamilyMedium,
     color: colors.textTertiary,
-    textAlign: 'center',
+    textAlign: "center",
     paddingHorizontal: spacing.lg,
   },
 });
