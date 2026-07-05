@@ -1,10 +1,13 @@
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import EventTypeRow from "../components/AddEvent/EventTypeRow";
 import { EVENT_TYPES, EVENT_ICON_NAMES, EVENT_LABELS } from "../store/mockData";
-import { colors, spacing, typography } from "../theme/constants";
+import { useTheme } from "../store/ThemeContext";
+
+const SCREEN_MARGIN = 20;
+const TAB_BAR_CLEARANCE = 140;
 
 const TYPES = [
   EVENT_TYPES.sleep,
@@ -19,7 +22,6 @@ const JOURNAL_ENTRY = {
   iconName: "book-outline",
   label: "Journal entry",
   subtitle: "Add a journal entry",
-  tintColor: colors.accent,
   onPress: (navigation) => {
     navigation.navigate("HomeTab", {
       screen: "JournalHistory",
@@ -31,37 +33,50 @@ const JOURNAL_ENTRY = {
 export default function EventTypeListScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const { palette, text } = useTheme();
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + spacing.md }]}>
-      <Text style={styles.eyebrow}>Capture</Text>
-      <Text style={styles.title}>Add Event</Text>
-      <Text style={styles.subtitle}>Choose what you want to log.</Text>
-      <View style={styles.list}>
-        {TYPES.map((type) => (
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: palette.background, paddingTop: insets.top + 12 },
+      ]}
+    >
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        <Text style={text.eyebrow}>{"Capture".toUpperCase()}</Text>
+        <Text style={[text.display, styles.title]}>log something.</Text>
+        <Text style={[text.footnote, styles.subtitle]}>
+          Choose what you want to log.
+        </Text>
+        <View style={styles.list}>
+          {TYPES.map((type) => (
+            <EventTypeRow
+              key={type}
+              type={type}
+              iconName={EVENT_ICON_NAMES[type]}
+              label={EVENT_LABELS[type]}
+              onPress={() =>
+                navigation.navigate(
+                  type.charAt(0).toUpperCase() + type.slice(1) + "Event",
+                )
+              }
+              style={styles.row}
+            />
+          ))}
           <EventTypeRow
-            key={type}
-            type={type}
-            iconName={EVENT_ICON_NAMES[type]}
-            label={EVENT_LABELS[type]}
-            onPress={() =>
-              navigation.navigate(
-                type.charAt(0).toUpperCase() + type.slice(1) + "Event",
-              )
-            }
+            type="journal"
+            iconName={JOURNAL_ENTRY.iconName}
+            label={JOURNAL_ENTRY.label}
+            subtitle={JOURNAL_ENTRY.subtitle}
+            tintColor={palette.tint}
+            onPress={() => JOURNAL_ENTRY.onPress(navigation)}
             style={styles.row}
           />
-        ))}
-        <EventTypeRow
-          type="journal"
-          iconName={JOURNAL_ENTRY.iconName}
-          label={JOURNAL_ENTRY.label}
-          subtitle={JOURNAL_ENTRY.subtitle}
-          tintColor={JOURNAL_ENTRY.tintColor}
-          onPress={() => JOURNAL_ENTRY.onPress(navigation)}
-          style={styles.row}
-        />
-      </View>
+        </View>
+      </ScrollView>
     </View>
   );
 }
@@ -69,36 +84,22 @@ export default function EventTypeListScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
-    paddingHorizontal: 0,
-    paddingBottom: 120,
   },
-  eyebrow: {
-    ...typography.caption1,
-    color: colors.textTertiary,
-    textTransform: "uppercase",
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.xxs,
+  scrollContent: {
+    paddingHorizontal: SCREEN_MARGIN,
+    paddingBottom: TAB_BAR_CLEARANCE,
   },
   title: {
-    fontSize: typography.largeTitle.fontSize,
-    fontFamily: typography.fontFamilyBold,
-    color: colors.textPrimary,
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.xs,
+    marginTop: 6,
   },
   subtitle: {
-    ...typography.body,
-    color: colors.textSecondary,
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.lg,
+    marginTop: 6,
+    marginBottom: 24,
   },
   list: {
-    flex: 1,
-    marginTop: spacing.xs,
+    gap: 12,
   },
   row: {
-    flex: 1,
-    marginBottom: spacing.sm,
+    marginBottom: 0,
   },
 });

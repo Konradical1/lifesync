@@ -11,7 +11,7 @@ import {
 } from "../../utils/time";
 import { EVENT_TYPES } from "../../store/mockData";
 import { EVENT_TYPE_COLORS } from "../../theme/constants";
-import { colors } from "../../theme/constants";
+import { useTheme } from "../../store/ThemeContext";
 
 const HOUR_HEIGHT = 72;
 const HOLD_DURATION_MS = 350;
@@ -59,6 +59,7 @@ export default function DraggableEventBlock({
   viewDate,
   onEventMovedToDay,
 }) {
+  const { palette } = useTheme();
   const dragActivated = useRef(false);
   const holdTimerRef = useRef(null);
   const lastSnapped = useRef({
@@ -173,7 +174,7 @@ export default function DraggableEventBlock({
     }),
   ).current;
 
-  const eventColor = EVENT_TYPE_COLORS[event.type] ?? colors.accent;
+  const eventColor = EVENT_TYPE_COLORS[event.type] ?? palette.tint;
   const isThin = height < 56;
   const columnWidth = 100 / Math.max(totalColumns, 1);
 

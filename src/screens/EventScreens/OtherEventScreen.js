@@ -1,12 +1,26 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Platform,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useStore } from '../../store/useStore';
 import { EVENT_TYPES } from '../../store/mockData';
-import { colors, spacing, typography, borderRadius } from '../../theme/constants';
 import { formatTime12h } from '../../utils/time';
+import { useTheme } from '../../store/ThemeContext';
+
+const CTA_HEIGHT = 48;
+const CONTROL_RADIUS = 14;
+const NOTE_MIN_HEIGHT = 120;
 
 function formatDateKey(d) {
   const y = d.getFullYear();
@@ -26,6 +40,7 @@ function generateId() {
 export default function OtherEventScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const { palette, text } = useTheme();
   const { dispatch } = useStore();
 
   const now = new Date();
@@ -52,19 +67,40 @@ export default function OtherEventScreen() {
     navigation.goBack();
   };
 
+  const saveDisabled = !note.trim();
+  const timeButtonStyle = [styles.timeButton, { backgroundColor: palette.fill }];
+
   return (
-    <ScrollView style={[styles.container, { paddingTop: insets.top }]} contentContainerStyle={styles.contentScroll}>
+    <ScrollView
+      style={[
+        styles.container,
+        { backgroundColor: palette.background, paddingTop: insets.top + 12 },
+      ]}
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+    >
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.backButton}>Cancel</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Log Other</Text>
-        <View style={{ width: 60 }} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Cancel"
+          hitSlop={8}
+          onPress={() => navigation.goBack()}
+          style={({ pressed }) => pressed && styles.pressed}
+        >
+          <Ionicons name="chevron-back" size={26} color={palette.label} />
+        </Pressable>
+        <Text style={text.title2}>log a note.</Text>
       </View>
       <View style={styles.content}>
-        <Text style={styles.label}>Start time</Text>
-        <TouchableOpacity style={styles.input} onPress={() => setShowTimePicker((p) => (p === 'start' ? null : 'start'))}>
-          <Text style={styles.inputText}>{formatTime12h(formatTime24h(startTime))}</Text>
+        <Text style={[text.eyebrow, styles.label]}>
+          {'Start time'.toUpperCase()}
+        </Text>
+        <TouchableOpacity
+          accessibilityRole="button"
+          style={timeButtonStyle}
+          onPress={() => setShowTimePicker((p) => (p === 'start' ? null : 'start'))}
+        >
+          <Text style={text.body}>{formatTime12h(formatTime24h(startTime))}</Text>
         </TouchableOpacity>
         {showTimePicker === 'start' && (
           <DateTimePicker
@@ -74,9 +110,15 @@ export default function OtherEventScreen() {
             onChange={(_, d) => d && setStartTime(d)}
           />
         )}
-        <Text style={styles.label}>End time</Text>
-        <TouchableOpacity style={styles.input} onPress={() => setShowTimePicker((p) => (p === 'end' ? null : 'end'))}>
-          <Text style={styles.inputText}>{formatTime12h(formatTime24h(endTime))}</Text>
+        <Text style={[text.eyebrow, styles.label]}>
+          {'End time'.toUpperCase()}
+        </Text>
+        <TouchableOpacity
+          accessibilityRole="button"
+          style={timeButtonStyle}
+          onPress={() => setShowTimePicker((p) => (p === 'end' ? null : 'end'))}
+        >
+          <Text style={text.body}>{formatTime12h(formatTime24h(endTime))}</Text>
         </TouchableOpacity>
         {showTimePicker === 'end' && (
           <DateTimePicker
@@ -86,21 +128,35 @@ export default function OtherEventScreen() {
             onChange={(_, d) => d && setEndTime(d)}
           />
         )}
-        <Text style={styles.label}>Note (AI will interpret later)</Text>
+        <Text style={[text.eyebrow, styles.label]}>
+          {'Note (AI will interpret later)'.toUpperCase()}
+        </Text>
         <TextInput
-          style={[styles.input, styles.textAreaInput]}
+          style={[
+            text.body,
+            styles.input,
+            styles.textArea,
+            { backgroundColor: palette.fill },
+          ]}
           placeholder="Freeform text…"
-          placeholderTextColor={colors.textTertiary}
+          placeholderTextColor={palette.tertiaryLabel}
           value={note}
           onChangeText={setNote}
           multiline
         />
         <TouchableOpacity
-          style={styles.saveButton}
+          accessibilityRole="button"
+          style={[
+            styles.saveButton,
+            { backgroundColor: palette.label },
+            saveDisabled && styles.disabled,
+          ]}
           onPress={handleSave}
-          disabled={!note.trim()}
+          disabled={saveDisabled}
         >
-          <Text style={styles.saveButtonText}>Save</Text>
+          <Text style={[text.headline, { color: palette.background }]}>
+            Save
+          </Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -110,63 +166,50 @@ export default function OtherEventScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    paddingHorizontal: 20,
+  },
+  scrollContent: {
+    paddingBottom: 40,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  backButton: {
-    fontSize: typography.body.fontSize,
-    color: colors.textSecondary,
-  },
-  title: {
-    fontSize: typography.headline.fontSize,
-    fontWeight: typography.headline.fontWeight,
-    color: colors.textPrimary,
+    gap: 10,
+    marginBottom: 24,
   },
   content: {
-    padding: spacing.md,
+    flex: 1,
   },
   label: {
-    fontSize: typography.footnote.fontSize,
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
+    marginBottom: 8,
   },
-  contentScroll: {
-    paddingBottom: spacing.xl,
+  timeButton: {
+    borderRadius: CONTROL_RADIUS,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 20,
   },
   input: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.sm,
-    padding: spacing.md,
-    fontSize: typography.body.fontSize,
-    color: colors.textPrimary,
-    marginBottom: spacing.md,
+    borderRadius: CONTROL_RADIUS,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 20,
   },
-  inputText: {
-    fontSize: typography.body.fontSize,
-    color: colors.textPrimary,
-  },
-  textAreaInput: {
-    minHeight: 120,
+  textArea: {
+    minHeight: NOTE_MIN_HEIGHT,
     textAlignVertical: 'top',
   },
   saveButton: {
-    backgroundColor: colors.accent,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
+    height: CTA_HEIGHT,
+    borderRadius: CTA_HEIGHT / 2,
     alignItems: 'center',
-    marginTop: spacing.lg,
+    justifyContent: 'center',
+    marginTop: 16,
   },
-  saveButtonText: {
-    fontSize: typography.headline.fontSize,
-    fontWeight: typography.headline.fontWeight,
-    color: colors.background,
+  disabled: {
+    opacity: 0.45,
+  },
+  pressed: {
+    opacity: 0.7,
   },
 });

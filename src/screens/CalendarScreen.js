@@ -6,7 +6,6 @@ import {
   StyleSheet,
   Dimensions,
   TouchableOpacity,
-  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRoute, useNavigation } from "@react-navigation/native";
@@ -15,7 +14,8 @@ import { useEvents, useStore } from "../store/useStore";
 import DayView from "../components/Calendar/DayView";
 import EventEditSheet from "../components/Calendar/EventEditSheet";
 import MoodEditSheet from "../components/Calendar/MoodEditSheet";
-import { colors, spacing, typography } from "../theme/constants";
+import { useTheme } from "../store/ThemeContext";
+import { fonts } from "../theme/ios";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -47,6 +47,7 @@ export default function CalendarScreen() {
   const insets = useSafeAreaInsets();
   const route = useRoute();
   const navigation = useNavigation();
+  const { palette, text, shape } = useTheme();
   const events = useEvents();
   const { state } = useStore();
   const moodEntries = state.moodEntries;
@@ -153,35 +154,50 @@ export default function CalendarScreen() {
         >
           <View style={styles.dayHeader}>
             <View style={styles.dateCluster}>
-              <Text style={styles.monthYear}>
-                {d.toLocaleString("default", { month: "long" })}{" "}
-                {d.getFullYear()}
+              <Text style={text.eyebrow}>
+                {`${d.toLocaleString("default", { month: "long" })} ${d.getFullYear()}`.toUpperCase()}
               </Text>
               <View style={styles.dayTitleRow}>
-                <Text style={styles.dayName}>{dayName}</Text>
-                <Text style={[styles.dayNum, isToday && styles.dayNumToday]}>
+                <Text style={[text.title3, { color: palette.secondaryLabel }]}>
+                  {dayName}
+                </Text>
+                <Text
+                  style={[
+                    styles.dayNum,
+                    {
+                      fontFamily: fonts.displayBold,
+                      color: isToday ? palette.tint : palette.label,
+                    },
+                  ]}
+                >
                   {dayNum}
                 </Text>
               </View>
             </View>
-            <View style={styles.modeSwitch}>
+            <View style={[styles.modeSwitch, { backgroundColor: palette.fill }]}>
               <TouchableOpacity
                 onPress={() => navigation.setParams({ mode: "events" })}
                 style={[
                   styles.modeOption,
-                  !isMoodMode && styles.modeOptionActive,
+                  !isMoodMode && { backgroundColor: palette.label },
                 ]}
                 activeOpacity={0.85}
               >
                 <Ionicons
                   name="calendar-outline"
                   size={15}
-                  color={!isMoodMode ? colors.background : colors.textSecondary}
+                  color={
+                    !isMoodMode ? palette.background : palette.secondaryLabel
+                  }
                 />
                 <Text
                   style={[
-                    styles.modeLabelText,
-                    !isMoodMode && styles.modeLabelTextActive,
+                    text.caption,
+                    {
+                      color: !isMoodMode
+                        ? palette.background
+                        : palette.secondaryLabel,
+                    },
                   ]}
                 >
                   Events
@@ -191,19 +207,25 @@ export default function CalendarScreen() {
                 onPress={() => navigation.setParams({ mode: "mood" })}
                 style={[
                   styles.modeOption,
-                  isMoodMode && styles.modeOptionActive,
+                  isMoodMode && { backgroundColor: palette.label },
                 ]}
                 activeOpacity={0.85}
               >
                 <Ionicons
                   name="happy-outline"
                   size={15}
-                  color={isMoodMode ? colors.background : colors.textSecondary}
+                  color={
+                    isMoodMode ? palette.background : palette.secondaryLabel
+                  }
                 />
                 <Text
                   style={[
-                    styles.modeLabelText,
-                    isMoodMode && styles.modeLabelTextActive,
+                    text.caption,
+                    {
+                      color: isMoodMode
+                        ? palette.background
+                        : palette.secondaryLabel,
+                    },
                   ]}
                 >
                   Mood
@@ -211,7 +233,15 @@ export default function CalendarScreen() {
               </TouchableOpacity>
             </View>
           </View>
-          <View style={styles.timelineShell}>
+          <View
+            style={[
+              styles.timelineShell,
+              {
+                backgroundColor: palette.card,
+                borderCurve: shape.borderCurve,
+              },
+            ]}
+          >
             <DayView
               date={date}
               events={events}
@@ -251,6 +281,9 @@ export default function CalendarScreen() {
       handleDragStart,
       handleDragEnd,
       handleEventMovedToDay,
+      palette,
+      text,
+      shape,
     ],
   );
 
@@ -264,10 +297,19 @@ export default function CalendarScreen() {
   );
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: palette.background, paddingTop: insets.top },
+      ]}
+    >
+      <Text style={[text.display, styles.pageTitle]}>calendar.</Text>
       <View style={styles.weekRow}>
         {DAY_LABELS.map((d) => (
-          <Text key={d} style={styles.weekLabel}>
+          <Text
+            key={d}
+            style={[text.caption, { color: palette.tertiaryLabel }]}
+          >
             {d.charAt(0)}
           </Text>
         ))}
@@ -297,31 +339,29 @@ export default function CalendarScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+  },
+  pageTitle: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
   },
   weekRow: {
     flexDirection: "row",
     justifyContent: "space-around",
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-    paddingHorizontal: spacing.md,
-  },
-  weekLabel: {
-    ...typography.caption1,
-    fontFamily: typography.fontFamilySemiBold,
-    color: colors.textSecondary,
+    paddingTop: 8,
+    paddingBottom: 8,
+    paddingHorizontal: 16,
   },
   dayPage: {
     flex: 1,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: 16,
   },
   dayHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
-    gap: spacing.md,
+    paddingTop: 12,
+    paddingBottom: 16,
+    gap: 16,
   },
   dateCluster: {
     flex: 1,
@@ -329,71 +369,29 @@ const styles = StyleSheet.create({
   dayTitleRow: {
     flexDirection: "row",
     alignItems: "baseline",
-    gap: spacing.sm,
-  },
-  dayName: {
-    fontSize: typography.title3.fontSize,
-    fontFamily: typography.fontFamilyBold,
-    color: colors.textSecondary,
+    gap: 12,
   },
   dayNum: {
     fontSize: 48,
     lineHeight: 54,
-    fontFamily: typography.fontFamilyBold,
-    color: colors.textPrimary,
-  },
-  dayNumToday: {
-    color: colors.accent,
-  },
-  monthYear: {
-    ...typography.footnote,
-    fontFamily: typography.fontFamilySemiBold,
-    color: colors.textTertiary,
   },
   modeSwitch: {
     flexDirection: "row",
     padding: 4,
     borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-    backgroundColor: "rgba(255,255,255,0.055)",
   },
   modeOption: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 14,
-  },
-  modeOptionActive: {
-    backgroundColor: colors.accent,
-  },
-  modeLabelText: {
-    ...typography.caption1,
-    color: colors.textSecondary,
-  },
-  modeLabelTextActive: {
-    color: colors.background,
   },
   timelineShell: {
     flex: 1,
     minHeight: 1,
-    borderRadius: 28,
+    borderRadius: 20,
     overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-    backgroundColor: "rgba(255,255,255,0.045)",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 16 },
-        shadowOpacity: 0.18,
-        shadowRadius: 28,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
   },
 });

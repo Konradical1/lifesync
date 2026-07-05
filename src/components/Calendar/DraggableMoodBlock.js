@@ -10,7 +10,7 @@ import {
   fromAbsoluteSlots,
 } from '../../utils/time';
 import { MOOD_OPTIONS } from '../../store/mockData';
-import { colors } from '../../theme/constants';
+import { useTheme } from '../../store/ThemeContext';
 
 const HOUR_HEIGHT = 72;
 const HOLD_DURATION_MS = 350;
@@ -39,6 +39,7 @@ export default function DraggableMoodBlock({
   viewDate,
   onMoodMovedToDay,
 }) {
+  const { palette } = useTheme();
   const dragActivated = useRef(false);
   const holdTimerRef = useRef(null);
   const { startMinutes } = getMoodStartAndEnd(mood);
@@ -141,7 +142,7 @@ export default function DraggableMoodBlock({
     })
   ).current;
 
-  const moodColor = MOOD_OPTIONS.find((m) => m.id === mood.emotion)?.color ?? colors.accent;
+  const moodColor = MOOD_OPTIONS.find((m) => m.id === mood.emotion)?.color ?? palette.tint;
 
   return (
     <View

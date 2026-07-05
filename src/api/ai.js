@@ -1,4 +1,5 @@
 import { AI } from "./config";
+import { getAuthHeaders } from "./supabase";
 
 const EXTRACT_TIMEOUT_MS = 8000;
 
@@ -21,7 +22,7 @@ export async function extractFood(text) {
   try {
     const res = await fetch(AI.extract, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await getAuthHeaders(),
       body: JSON.stringify({ type: "food", text: trimmed }),
       signal: controller.signal,
     });
@@ -91,7 +92,7 @@ export async function extractExercise(text) {
   try {
     const res = await fetch(AI.extract, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await getAuthHeaders(),
       body: JSON.stringify({ type: "exercise", text: trimmed }),
       signal: controller.signal,
     });
@@ -141,7 +142,7 @@ export async function getDaySummary(payload) {
   try {
     const res = await fetch(AI.summary, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await getAuthHeaders(),
       body: JSON.stringify(payload),
       signal: controller.signal,
     });
@@ -168,7 +169,7 @@ export async function getDaySummaryShort(payload) {
   try {
     const res = await fetch(AI.summaryShort, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await getAuthHeaders(),
       body: JSON.stringify(payload),
       signal: controller.signal,
     });
@@ -199,7 +200,7 @@ export async function getInsights(payload) {
   try {
     const res = await fetch(AI.insights, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await getAuthHeaders(),
       body: JSON.stringify(payload),
       signal: controller.signal,
     });

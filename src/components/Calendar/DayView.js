@@ -11,7 +11,7 @@ import {
   getSleepSegmentForDay,
   getMoodStartAndEnd,
 } from "../../utils/time";
-import { colors, spacing, typography } from "../../theme/constants";
+import { useTheme } from "../../store/ThemeContext";
 
 const HOUR_HEIGHT = 72;
 const MIN_EVENT_HEIGHT = 44;
@@ -168,6 +168,7 @@ export default function DayView({
   onMoodMovedToDay,
 }) {
   const { dispatch } = useStore();
+  const { palette, text } = useTheme();
   const [isDragging, setIsDragging] = useState(false);
   const [nowTick, setNowTick] = useState(0);
   const scrollRef = useRef(null);
@@ -301,8 +302,18 @@ export default function DayView({
       <View style={styles.grid}>
         {Array.from({ length: hourCount }, (_, i) => (
           <View key={i} style={[styles.hourRow, { height: HOUR_HEIGHT }]}>
-            <Text style={styles.hourLabel}>{formatHourLabel(i)}</Text>
-            <View style={styles.hourLine} />
+            <Text
+              style={[
+                text.caption,
+                styles.hourLabel,
+                { color: palette.tertiaryLabel },
+              ]}
+            >
+              {formatHourLabel(i)}
+            </Text>
+            <View
+              style={[styles.hourLine, { borderTopColor: palette.separator }]}
+            />
           </View>
         ))}
       </View>
@@ -314,7 +325,10 @@ export default function DayView({
           {Array.from({ length: hourCount }, (_, i) => (
             <View
               key={i}
-              style={[styles.hourLineFaint, { top: i * HOUR_HEIGHT }]}
+              style={[
+                styles.hourLineFaint,
+                { top: i * HOUR_HEIGHT, borderTopColor: palette.separator },
+              ]}
             />
           ))}
         </View>
@@ -368,8 +382,8 @@ export default function DayView({
             style={[styles.nowLineWrap, { top: nowLineTop }]}
             pointerEvents="none"
           >
-            <View style={styles.nowDot} />
-            <View style={styles.nowLine} />
+            <View style={[styles.nowDot, { backgroundColor: palette.red }]} />
+            <View style={[styles.nowLine, { backgroundColor: palette.red }]} />
           </View>
         )}
       </View>
@@ -383,7 +397,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flexDirection: "row",
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: 16,
   },
   grid: {
     width: 50,
@@ -393,21 +407,18 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   hourLabel: {
-    fontSize: typography.caption2.fontSize,
-    color: colors.textTertiary,
     width: 46,
     textAlign: "right",
-    paddingRight: spacing.xs,
+    paddingRight: 8,
   },
   hourLine: {
     flex: 1,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopWidth: StyleSheet.hairlineWidth,
     marginTop: 6,
   },
   eventsColumn: {
     flex: 1,
-    marginLeft: spacing.sm,
+    marginLeft: 12,
     position: "relative",
   },
   hourLinesBackdrop: {
@@ -420,8 +431,8 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
     right: 0,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.08)",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    opacity: 0.5,
     marginTop: 6,
   },
   nowLineWrap: {
@@ -436,11 +447,9 @@ const styles = StyleSheet.create({
     width: 9,
     height: 9,
     borderRadius: 5,
-    backgroundColor: "#FF3B30",
   },
   nowLine: {
     flex: 1,
     height: 2,
-    backgroundColor: "#FF3B30",
   },
 });

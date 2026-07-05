@@ -18,8 +18,8 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useStore } from '../../store/useStore';
 import { EVENT_TYPES } from '../../store/mockData';
 import { formatTime12h } from '../../utils/time';
-import { colors, spacing, typography, borderRadius } from '../../theme/constants';
 import { EVENT_TYPE_COLORS } from '../../theme/constants';
+import { useTheme } from '../../store/ThemeContext';
 import { extractFood, extractExercise } from '../../api/ai';
 import { isSupabaseConfigured } from '../../api/supabase';
 import { deleteEventFromSupabase } from '../../api/supabaseSync';
@@ -37,6 +37,11 @@ function formatTime24h(d) {
 
 export default function EventEditSheet({ event, onClose }) {
   const { dispatch } = useStore();
+  const { palette, text, shape } = useTheme();
+  const inputSurface = {
+    backgroundColor: palette.fill,
+    borderRadius: shape.controlRadius,
+  };
   const [visible, setVisible] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -196,19 +201,19 @@ export default function EventEditSheet({ event, onClose }) {
 
   if (!event) return null;
 
-  const eventColor = EVENT_TYPE_COLORS[event.type] ?? colors.accent;
+  const eventColor = EVENT_TYPE_COLORS[event.type] ?? palette.tint;
 
   const renderFields = () => {
     switch (event.type) {
       case EVENT_TYPES.sleep:
         return (
           <>
-            <Text style={styles.label}>Start time</Text>
+            <Text style={[text.footnote, styles.label]}>Start time</Text>
             <TouchableOpacity
-              style={styles.input}
+              style={[styles.input, inputSurface]}
               onPress={() => toggleTimePicker('start')}
             >
-              <Text style={styles.inputText}>{formatTime12h(formatTime24h(startTime))}</Text>
+              <Text style={text.body}>{formatTime12h(formatTime24h(startTime))}</Text>
             </TouchableOpacity>
             {showTimePicker === 'start' && (
               <DateTimePicker
@@ -218,12 +223,12 @@ export default function EventEditSheet({ event, onClose }) {
                 onChange={(_, d) => d && setStartTime(d)}
               />
             )}
-            <Text style={styles.label}>End time</Text>
+            <Text style={[text.footnote, styles.label]}>End time</Text>
             <TouchableOpacity
-              style={styles.input}
+              style={[styles.input, inputSurface]}
               onPress={() => toggleTimePicker('end')}
             >
-              <Text style={styles.inputText}>{formatTime12h(formatTime24h(endTime))}</Text>
+              <Text style={text.body}>{formatTime12h(formatTime24h(endTime))}</Text>
             </TouchableOpacity>
             {showTimePicker === 'end' && (
               <DateTimePicker
@@ -238,12 +243,12 @@ export default function EventEditSheet({ event, onClose }) {
       case EVENT_TYPES.food:
         return (
           <>
-            <Text style={styles.label}>Time</Text>
+            <Text style={[text.footnote, styles.label]}>Time</Text>
             <TouchableOpacity
-              style={styles.input}
+              style={[styles.input, inputSurface]}
               onPress={() => toggleTimePicker('time')}
             >
-              <Text style={styles.inputText}>{formatTime12h(formatTime24h(timeDate))}</Text>
+              <Text style={text.body}>{formatTime12h(formatTime24h(timeDate))}</Text>
             </TouchableOpacity>
             {showTimePicker === 'time' && (
               <DateTimePicker
@@ -253,19 +258,23 @@ export default function EventEditSheet({ event, onClose }) {
                 onChange={(_, d) => d && setTimeDate(d)}
               />
             )}
-            <Text style={styles.label}>What did you eat?</Text>
+            <Text style={[text.footnote, styles.label]}>What did you eat?</Text>
             <TextInput
-              style={styles.input}
+              style={[text.body, styles.input, inputSurface]}
               value={description}
               onChangeText={(t) => { setDescription(t); setAiError(null); }}
               placeholder="Oatmeal with banana"
-              placeholderTextColor={colors.textTertiary}
+              placeholderTextColor={palette.tertiaryLabel}
             />
             {aiError ? (
-              <Text style={styles.aiError}>{aiError}</Text>
+              <Text style={[text.footnote, styles.aiError, { color: palette.red }]}>{aiError}</Text>
             ) : null}
             <TouchableOpacity
-              style={[styles.aiButton, aiLoading && styles.aiButtonDisabled]}
+              style={[
+                styles.aiButton,
+                { backgroundColor: palette.fill },
+                aiLoading && styles.aiButtonDisabled,
+              ]}
               onPress={async () => {
                 const t = description?.trim();
                 if (!t) return;
@@ -284,35 +293,35 @@ export default function EventEditSheet({ event, onClose }) {
               }}
               disabled={aiLoading || !description?.trim()}
             >
-              <Text style={styles.aiButtonText}>
+              <Text style={[text.subheadline, { color: palette.tint }]}>
                 {aiLoading ? 'Getting macros…' : 'Fill with AI'}
               </Text>
             </TouchableOpacity>
-            <Text style={styles.label}>Calories</Text>
+            <Text style={[text.footnote, styles.label]}>Calories</Text>
             <TextInput
-              style={styles.input}
+              style={[text.body, styles.input, inputSurface]}
               value={calories}
               onChangeText={setCalories}
               placeholder="0"
-              placeholderTextColor={colors.textTertiary}
+              placeholderTextColor={palette.tertiaryLabel}
               keyboardType="number-pad"
             />
-            <Text style={styles.label}>Protein (g)</Text>
+            <Text style={[text.footnote, styles.label]}>Protein (g)</Text>
             <TextInput
-              style={styles.input}
+              style={[text.body, styles.input, inputSurface]}
               value={protein}
               onChangeText={setProtein}
               placeholder="0"
-              placeholderTextColor={colors.textTertiary}
+              placeholderTextColor={palette.tertiaryLabel}
               keyboardType="number-pad"
             />
-            <Text style={styles.label}>Carbs (g)</Text>
+            <Text style={[text.footnote, styles.label]}>Carbs (g)</Text>
             <TextInput
-              style={styles.input}
+              style={[text.body, styles.input, inputSurface]}
               value={carbs}
               onChangeText={setCarbs}
               placeholder="0"
-              placeholderTextColor={colors.textTertiary}
+              placeholderTextColor={palette.tertiaryLabel}
               keyboardType="number-pad"
             />
           </>
@@ -320,12 +329,12 @@ export default function EventEditSheet({ event, onClose }) {
       case EVENT_TYPES.exercise:
         return (
           <>
-            <Text style={styles.label}>Time</Text>
+            <Text style={[text.footnote, styles.label]}>Time</Text>
             <TouchableOpacity
-              style={styles.input}
+              style={[styles.input, inputSurface]}
               onPress={() => toggleTimePicker('time')}
             >
-              <Text style={styles.inputText}>{formatTime12h(formatTime24h(timeDate))}</Text>
+              <Text style={text.body}>{formatTime12h(formatTime24h(timeDate))}</Text>
             </TouchableOpacity>
             {showTimePicker === 'time' && (
               <DateTimePicker
@@ -335,19 +344,23 @@ export default function EventEditSheet({ event, onClose }) {
                 onChange={(_, d) => d && setTimeDate(d)}
               />
             )}
-            <Text style={styles.label}>What did you do?</Text>
+            <Text style={[text.footnote, styles.label]}>What did you do?</Text>
             <TextInput
-              style={styles.input}
+              style={[text.body, styles.input, inputSurface]}
               value={description}
               onChangeText={(t) => { setDescription(t); setAiError(null); }}
               placeholder="30 min run"
-              placeholderTextColor={colors.textTertiary}
+              placeholderTextColor={palette.tertiaryLabel}
             />
             {aiError ? (
-              <Text style={styles.aiError}>{aiError}</Text>
+              <Text style={[text.footnote, styles.aiError, { color: palette.red }]}>{aiError}</Text>
             ) : null}
             <TouchableOpacity
-              style={[styles.aiButton, aiLoading && styles.aiButtonDisabled]}
+              style={[
+                styles.aiButton,
+                { backgroundColor: palette.fill },
+                aiLoading && styles.aiButtonDisabled,
+              ]}
               onPress={async () => {
                 const t = description?.trim();
                 if (!t) return;
@@ -365,26 +378,26 @@ export default function EventEditSheet({ event, onClose }) {
               }}
               disabled={aiLoading || !description?.trim()}
             >
-              <Text style={styles.aiButtonText}>
+              <Text style={[text.subheadline, { color: palette.tint }]}>
                 {aiLoading ? 'Getting details…' : 'Fill with AI'}
               </Text>
             </TouchableOpacity>
-            <Text style={styles.label}>Duration (min)</Text>
+            <Text style={[text.footnote, styles.label]}>Duration (min)</Text>
             <TextInput
-              style={styles.input}
+              style={[text.body, styles.input, inputSurface]}
               value={duration}
               onChangeText={setDuration}
               placeholder="30"
-              placeholderTextColor={colors.textTertiary}
+              placeholderTextColor={palette.tertiaryLabel}
               keyboardType="number-pad"
             />
-            <Text style={styles.label}>Calories</Text>
+            <Text style={[text.footnote, styles.label]}>Calories</Text>
             <TextInput
-              style={styles.input}
+              style={[text.body, styles.input, inputSurface]}
               value={calories}
               onChangeText={setCalories}
               placeholder="0"
-              placeholderTextColor={colors.textTertiary}
+              placeholderTextColor={palette.tertiaryLabel}
               keyboardType="number-pad"
             />
           </>
@@ -392,12 +405,12 @@ export default function EventEditSheet({ event, onClose }) {
       case EVENT_TYPES.meds:
         return (
           <>
-            <Text style={styles.label}>Time</Text>
+            <Text style={[text.footnote, styles.label]}>Time</Text>
             <TouchableOpacity
-              style={styles.input}
+              style={[styles.input, inputSurface]}
               onPress={() => toggleTimePicker('time')}
             >
-              <Text style={styles.inputText}>{formatTime12h(formatTime24h(timeDate))}</Text>
+              <Text style={text.body}>{formatTime12h(formatTime24h(timeDate))}</Text>
             </TouchableOpacity>
             {showTimePicker === 'time' && (
               <DateTimePicker
@@ -407,42 +420,42 @@ export default function EventEditSheet({ event, onClose }) {
                 onChange={(_, d) => d && setTimeDate(d)}
               />
             )}
-            <Text style={styles.label}>Name</Text>
+            <Text style={[text.footnote, styles.label]}>Name</Text>
             <TextInput
-              style={styles.input}
+              style={[text.body, styles.input, inputSurface]}
               value={name}
               onChangeText={setName}
               placeholder="Vitamin D"
-              placeholderTextColor={colors.textTertiary}
+              placeholderTextColor={palette.tertiaryLabel}
             />
-            <Text style={styles.label}>Dosage</Text>
+            <Text style={[text.footnote, styles.label]}>Dosage</Text>
             <TextInput
-              style={styles.input}
+              style={[text.body, styles.input, inputSurface]}
               value={dosage}
               onChangeText={setDosage}
               placeholder="1000"
-              placeholderTextColor={colors.textTertiary}
+              placeholderTextColor={palette.tertiaryLabel}
               keyboardType="number-pad"
             />
-            <Text style={styles.label}>Unit (mg, tab, etc.)</Text>
+            <Text style={[text.footnote, styles.label]}>Unit (mg, tab, etc.)</Text>
             <TextInput
-              style={styles.input}
+              style={[text.body, styles.input, inputSurface]}
               value={unit}
               onChangeText={setUnit}
               placeholder="mg"
-              placeholderTextColor={colors.textTertiary}
+              placeholderTextColor={palette.tertiaryLabel}
             />
           </>
         );
       case EVENT_TYPES.other:
         return (
           <>
-            <Text style={styles.label}>Start time</Text>
+            <Text style={[text.footnote, styles.label]}>Start time</Text>
             <TouchableOpacity
-              style={styles.input}
+              style={[styles.input, inputSurface]}
               onPress={() => toggleTimePicker('start')}
             >
-              <Text style={styles.inputText}>{formatTime12h(formatTime24h(startTime))}</Text>
+              <Text style={text.body}>{formatTime12h(formatTime24h(startTime))}</Text>
             </TouchableOpacity>
             {showTimePicker === 'start' && (
               <DateTimePicker
@@ -452,12 +465,12 @@ export default function EventEditSheet({ event, onClose }) {
                 onChange={(_, d) => d && setStartTime(d)}
               />
             )}
-            <Text style={styles.label}>End time</Text>
+            <Text style={[text.footnote, styles.label]}>End time</Text>
             <TouchableOpacity
-              style={styles.input}
+              style={[styles.input, inputSurface]}
               onPress={() => toggleTimePicker('end')}
             >
-              <Text style={styles.inputText}>{formatTime12h(formatTime24h(endTime))}</Text>
+              <Text style={text.body}>{formatTime12h(formatTime24h(endTime))}</Text>
             </TouchableOpacity>
             {showTimePicker === 'end' && (
               <DateTimePicker
@@ -467,13 +480,13 @@ export default function EventEditSheet({ event, onClose }) {
                 onChange={(_, d) => d && setEndTime(d)}
               />
             )}
-            <Text style={styles.label}>Note</Text>
+            <Text style={[text.footnote, styles.label]}>Note</Text>
             <TextInput
-              style={[styles.input, styles.textArea]}
+              style={[text.body, styles.input, inputSurface, styles.textArea]}
               value={note}
               onChangeText={setNote}
               placeholder="Team meeting"
-              placeholderTextColor={colors.textTertiary}
+              placeholderTextColor={palette.tertiaryLabel}
               multiline
             />
           </>
@@ -501,12 +514,22 @@ export default function EventEditSheet({ event, onClose }) {
           activeOpacity={1}
           onPress={handleClose}
         />
-        <View style={styles.panel}>
+        <View
+          style={[
+            styles.panel,
+            {
+              backgroundColor: palette.cardElevated,
+              borderCurve: shape.borderCurve,
+            },
+          ]}
+        >
           <View style={[styles.handle, { backgroundColor: eventColor }]} />
           <View style={styles.header}>
-            <Text style={styles.title}>Edit Event</Text>
+            <Text style={text.title3}>Edit Event</Text>
             <TouchableOpacity onPress={handleClose}>
-              <Text style={styles.closeBtn}>Close</Text>
+              <Text style={[text.subheadline, { color: palette.tint }]}>
+                Close
+              </Text>
             </TouchableOpacity>
           </View>
           <ScrollView
@@ -516,11 +539,18 @@ export default function EventEditSheet({ event, onClose }) {
             showsVerticalScrollIndicator={false}
           >
             {renderFields()}
-            <TouchableOpacity style={[styles.saveButton, { backgroundColor: eventColor }]} onPress={handleSave}>
-              <Text style={styles.saveButtonText}>Save</Text>
+            <TouchableOpacity
+              style={[styles.saveButton, { backgroundColor: palette.label }]}
+              onPress={handleSave}
+            >
+              <Text style={[text.headline, { color: palette.background }]}>
+                Save
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
-              <Text style={styles.deleteButtonText}>Delete</Text>
+              <Text style={[text.subheadline, { color: palette.red }]}>
+                Delete
+              </Text>
             </TouchableOpacity>
           </ScrollView>
         </View>
@@ -548,8 +578,7 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
   panel: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
+    borderRadius: 20,
     width: '90%',
     maxHeight: '85%',
   },
@@ -558,90 +587,54 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 2,
     alignSelf: 'center',
-    marginTop: spacing.sm,
+    marginTop: 12,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  title: {
-    fontSize: typography.title3.fontSize,
-    fontWeight: typography.title3.fontWeight,
-    color: colors.textPrimary,
-  },
-  closeBtn: {
-    fontSize: typography.body.fontSize,
-    color: colors.accent,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   scroll: {
     maxHeight: 400,
   },
   content: {
-    padding: spacing.md,
-    paddingBottom: spacing.xxl,
+    padding: 16,
+    paddingBottom: 48,
   },
   label: {
-    fontSize: typography.footnote.fontSize,
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
-    marginTop: spacing.sm,
+    marginBottom: 8,
+    marginTop: 12,
   },
   input: {
-    backgroundColor: colors.background,
-    borderRadius: borderRadius.sm,
-    padding: spacing.md,
-    fontSize: typography.body.fontSize,
-    color: colors.textPrimary,
-  },
-  inputText: {
-    fontSize: typography.body.fontSize,
-    color: colors.textPrimary,
+    padding: 16,
   },
   aiButton: {
-    backgroundColor: colors.accent,
-    borderRadius: borderRadius.sm,
-    padding: spacing.sm,
+    borderRadius: 14,
+    padding: 12,
     alignItems: 'center',
-    marginTop: spacing.sm,
+    marginTop: 12,
   },
   aiButtonDisabled: {
     opacity: 0.6,
   },
-  aiButtonText: {
-    fontSize: typography.footnote.fontSize,
-    color: colors.background,
-    fontWeight: '600',
-  },
   aiError: {
-    fontSize: typography.footnote.fontSize,
-    color: colors.textTertiary,
-    marginTop: spacing.xs,
+    marginTop: 8,
   },
   textArea: {
     minHeight: 80,
     textAlignVertical: 'top',
   },
   saveButton: {
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
+    borderRadius: 20,
+    padding: 16,
     alignItems: 'center',
-    marginTop: spacing.lg,
-    marginBottom: spacing.sm,
-  },
-  saveButtonText: {
-    fontSize: typography.headline.fontSize,
-    fontWeight: typography.headline.fontWeight,
-    color: colors.background,
+    marginTop: 24,
+    marginBottom: 12,
   },
   deleteButton: {
-    padding: spacing.md,
+    padding: 16,
     alignItems: 'center',
-  },
-  deleteButtonText: {
-    fontSize: typography.body.fontSize,
-    color: colors.textTertiary,
   },
 });

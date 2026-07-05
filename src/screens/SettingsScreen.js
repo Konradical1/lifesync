@@ -3,45 +3,60 @@ import {
   ScrollView,
   Text,
   View,
-  TouchableOpacity,
+  Pressable,
   Alert,
   ActivityIndicator,
   StyleSheet,
-  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../store/AuthContext";
-import {
-  colors,
-  spacing,
-  typography,
-  fontFamilyMedium,
-  fontFamilySemiBold,
-  borderRadius,
-} from "../theme/constants";
+import { useTheme } from "../store/ThemeContext";
+import { fonts } from "../theme/ios";
+import Card from "../components/ui/Card";
+import SegmentedControl from "../components/ui/SegmentedControl";
+
+const SCREEN_MARGIN = 20;
+
+const THEME_MODE_OPTIONS = [
+  { key: "light", label: "Light" },
+  { key: "dark", label: "Dark" },
+  { key: "system", label: "System" },
+];
+
+const TEST_MESSAGES = [
+  {
+    title: "LifeSync",
+    body: '🍽️ "Did you eat today? Logging meals helps spot patterns."',
+  },
+  { title: "LifeSync", body: '📝 "Take 2 minutes to reflect on your day."' },
+  {
+    title: "LifeSync",
+    body: '💧 "A little water might boost your energy right now."',
+  },
+  { title: "LifeSync", body: '🌙 "How did today really feel?"' },
+];
+
+/** Centered letterspaced-caps section divider, matching the Home screen. */
+function SectionLabel({ children }) {
+  const { text } = useTheme();
+  return (
+    <View style={styles.sectionLabel} accessibilityRole="header">
+      <Text style={text.eyebrow}>{children.toUpperCase()}</Text>
+    </View>
+  );
+}
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { user, signOut } = useAuth();
+  const { palette, text, mode, setMode } = useTheme();
+  const { user, signOut, deleteAccount } = useAuth();
   const [signingOut, setSigningOut] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const displayName = user?.user_metadata?.display_name || user?.email || "";
-
-  const testMessages = [
-    {
-      title: "JournalX",
-      body: '🍽️ "Did you eat today? Logging meals helps spot patterns."',
-    },
-    { title: "JournalX", body: '📝 "Take 2 minutes to reflect on your day."' },
-    {
-      title: "JournalX",
-      body: '💧 "A little water might boost your energy right now."',
-    },
-    { title: "JournalX", body: '🌙 "How did today really feel?"' },
-  ];
 
   async function handleTestNotification() {
     const { status } = await Notifications.getPermissionsAsync();
@@ -57,7 +72,7 @@ export default function SettingsScreen() {
       }
     }
 
-    const msg = testMessages[Math.floor(Math.random() * testMessages.length)];
+    const msg = TEST_MESSAGES[Math.floor(Math.random() * TEST_MESSAGES.length)];
     await Notifications.scheduleNotificationAsync({
       content: { title: msg.title, body: msg.body, sound: "default" },
       trigger: { type: "timeInterval", seconds: 2, repeats: false },
@@ -91,69 +106,145 @@ export default function SettingsScreen() {
     ]);
   }
 
+  function handleDeleteAccount() {
+    Alert.alert(
+      "Delete Account",
+      "This permanently deletes your account and all of your data — events, journal entries, moods, water logs, and profile. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            Alert.alert(
+              "Are you absolutely sure?",
+              "All of your LifeSync data will be gone forever.",
+              [
+                { text: "Keep my account", style: "cancel" },
+                {
+                  text: "Delete everything",
+                  style: "destructive",
+                  onPress: async () => {
+                    setDeleting(true);
+                    try {
+                      await AsyncStorage.multiRemove([
+                        "@journalx_profile",
+                        "@journalx_insights",
+                        "@journalx_water",
+                      ]);
+                      await deleteAccount();
+                    } catch (e) {
+                      Alert.alert(
+                        "Error",
+                        e.message || "Failed to delete account.",
+                      );
+                    } finally {
+                      setDeleting(false);
+                    }
+                  },
+                },
+              ],
+            );
+          },
+        },
+      ],
+    );
+  }
+
   return (
     <ScrollView
-      style={styles.container}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top }]}
+      style={[styles.container, { backgroundColor: palette.background }]}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]}
       showsVerticalScrollIndicator={false}
     >
-      <View style={styles.header}>
-        <Text style={styles.eyebrow}>JournalX</Text>
-        <Text style={styles.title}>Settings</Text>
-      </View>
+      <Text style={[text.display, styles.title]} accessibilityRole="header">
+        settings.
+      </Text>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Account</Text>
-        <View style={styles.accountCard}>
-          <View style={styles.accountIcon}>
-            <Ionicons
-              name="person-circle-outline"
-              size={40}
-              color={colors.accent}
-            />
-          </View>
-          <View style={styles.accountInfo}>
-            {!!displayName && displayName !== user?.email && (
-              <Text style={styles.accountName}>{displayName}</Text>
-            )}
-            <Text style={styles.accountEmail}>{user?.email}</Text>
-          </View>
+      <SectionLabel>Appearance</SectionLabel>
+      <Card style={styles.card}>
+        <SegmentedControl
+          options={THEME_MODE_OPTIONS}
+          value={mode}
+          onChange={setMode}
+          accessibilityLabel="Appearance"
+        />
+      </Card>
+
+      <SectionLabel>Account</SectionLabel>
+      <Card style={[styles.card, styles.accountCard]}>
+        <Ionicons name="person-circle" size={40} color={palette.tint} />
+        <View style={styles.accountInfo}>
+          {!!displayName && displayName !== user?.email && (
+            <Text style={[text.body, { fontFamily: fonts.bodyMedium }]}>
+              {displayName}
+            </Text>
+          )}
+          <Text style={[text.footnote, { color: palette.secondaryLabel }]}>
+            {user?.email}
+          </Text>
         </View>
-      </View>
+      </Card>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Notifications</Text>
-        <TouchableOpacity
-          style={styles.testNotifButton}
-          onPress={handleTestNotification}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name="notifications-outline"
-            size={20}
-            color={colors.accent}
-          />
-          <Text style={styles.testNotifText}>Send Test Notification</Text>
-        </TouchableOpacity>
-      </View>
+      <SectionLabel>Notifications</SectionLabel>
+      <Pressable
+        accessibilityRole="button"
+        onPress={handleTestNotification}
+        style={({ pressed }) => pressed && styles.pressed}
+      >
+        <Card style={[styles.card, styles.rowCard]}>
+          <Ionicons name="notifications" size={20} color={palette.tint} />
+          <Text
+            style={[text.body, { fontFamily: fonts.bodyMedium, color: palette.tint }]}
+          >
+            Send Test Notification
+          </Text>
+        </Card>
+      </Pressable>
 
-      <View style={styles.section}>
-        <TouchableOpacity
-          style={styles.signOutButton}
-          onPress={handleSignOut}
-          disabled={signingOut}
-          activeOpacity={0.7}
-        >
+      <Pressable
+        accessibilityRole="button"
+        onPress={handleSignOut}
+        disabled={signingOut}
+        style={({ pressed }) => pressed && styles.pressed}
+      >
+        <Card style={[styles.card, styles.rowCard, styles.signOutCard]}>
           {signingOut ? (
-            <ActivityIndicator color="#EF4444" size="small" />
+            <ActivityIndicator color={palette.red} size="small" />
           ) : (
             <>
-              <Ionicons name="log-out-outline" size={20} color="#EF4444" />
-              <Text style={styles.signOutText}>Sign Out</Text>
+              <Ionicons name="log-out" size={20} color={palette.red} />
+              <Text
+                style={[text.body, { fontFamily: fonts.bodyMedium, color: palette.red }]}
+              >
+                Sign Out
+              </Text>
             </>
           )}
-        </TouchableOpacity>
-      </View>
+        </Card>
+      </Pressable>
+
+      <Pressable
+        accessibilityRole="button"
+        onPress={handleDeleteAccount}
+        disabled={deleting || signingOut}
+        style={({ pressed }) => pressed && styles.pressed}
+      >
+        <Card style={[styles.card, styles.rowCard, styles.deleteCard]}>
+          {deleting ? (
+            <ActivityIndicator color={palette.red} size="small" />
+          ) : (
+            <>
+              <Ionicons name="trash" size={20} color={palette.red} />
+              <Text
+                style={[text.body, { fontFamily: fonts.bodyMedium, color: palette.red }]}
+              >
+                Delete Account
+              </Text>
+            </>
+          )}
+        </Card>
+      </Pressable>
     </ScrollView>
   );
 }
@@ -161,112 +252,48 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
   },
   content: {
     paddingBottom: 140,
   },
-  header: {
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.md,
-  },
-  eyebrow: {
-    ...typography.caption1,
-    color: colors.textTertiary,
-    textTransform: "uppercase",
-    marginBottom: spacing.xxs,
-  },
   title: {
-    fontSize: typography.largeTitle.fontSize,
-    fontFamily: typography.fontFamilyBold,
-    color: colors.textPrimary,
+    marginHorizontal: SCREEN_MARGIN,
+    marginBottom: 8,
   },
-  section: {
-    padding: spacing.md,
-  },
-  sectionTitle: {
-    ...typography.caption1,
-    textTransform: "uppercase",
-    color: colors.textSecondary,
-    marginBottom: spacing.sm,
-  },
-  accountCard: {
-    backgroundColor: "rgba(255,255,255,0.055)",
-    borderRadius: 24,
-    padding: spacing.md,
+  sectionLabel: {
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 12 },
-        shadowOpacity: 0.14,
-        shadowRadius: 22,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    justifyContent: "center",
+    gap: 4,
+    marginHorizontal: SCREEN_MARGIN,
+    marginTop: 30,
+    marginBottom: 12,
   },
-  accountIcon: {
-    marginRight: spacing.sm,
+  card: {
+    marginHorizontal: SCREEN_MARGIN,
+  },
+  accountCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
   accountInfo: {
     flex: 1,
+    minWidth: 0,
   },
-  accountName: {
-    fontSize: typography.body.fontSize,
-    fontFamily: fontFamilySemiBold,
-    color: colors.textPrimary,
-    marginBottom: 2,
-  },
-  accountEmail: {
-    fontSize: typography.footnote.fontSize,
-    fontFamily: fontFamilyMedium,
-    color: colors.textSecondary,
-  },
-  placeholder: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
-    padding: spacing.lg,
-  },
-  placeholderText: {
-    fontSize: typography.footnote.fontSize,
-    color: colors.textTertiary,
-  },
-  testNotifButton: {
-    backgroundColor: "rgba(255,255,255,0.055)",
-    borderRadius: 20,
-    padding: spacing.md,
+  rowCard: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: spacing.xs,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
+    gap: 8,
   },
-  testNotifText: {
-    fontSize: typography.body.fontSize,
-    fontFamily: fontFamilySemiBold,
-    color: colors.accent,
+  signOutCard: {
+    marginTop: 24,
   },
-  signOutButton: {
-    backgroundColor: "rgba(239,68,68,0.1)",
-    borderRadius: 20,
-    padding: spacing.md,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.xs,
-    borderWidth: 1,
-    borderColor: "rgba(239,68,68,0.22)",
+  deleteCard: {
+    marginTop: 12,
   },
-  signOutText: {
-    fontSize: typography.body.fontSize,
-    fontFamily: fontFamilySemiBold,
-    color: "#EF4444",
+  pressed: {
+    opacity: 0.7,
   },
 });

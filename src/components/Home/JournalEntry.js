@@ -4,6 +4,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  Pressable,
   Modal,
   StyleSheet,
   Keyboard,
@@ -12,12 +13,12 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useStore } from '../../store/useStore';
 import { getTimeNow24h } from '../../utils/time';
-import { colors, spacing, typography, borderRadius } from '../../theme/constants';
+import Card from '../ui/Card';
+import { useTheme } from '../../store/ThemeContext';
 
 const FADE_DURATION = 120;
 const KEYBOARD_CLOSE_DELAY = 80;
@@ -55,6 +56,7 @@ function formatDateDisplay(dateStr) {
 }
 
 export function JournalEditor({ date, initialText, onClose, entryId = null }) {
+  const { palette, text, shape } = useTheme();
   const [value, setValue] = useState(initialText);
   const [selectedDate, setSelectedDate] = useState(parseDateToDate(date));
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -127,25 +129,36 @@ export function JournalEditor({ date, initialText, onClose, entryId = null }) {
       <Animated.View style={[editorStyles.backdrop, { opacity, paddingTop: topOffset }]}>
         <TouchableOpacity style={editorStyles.backdropTouch} activeOpacity={1} onPress={performClose} />
         <View style={editorStyles.panelWrap}>
-          <View style={[editorStyles.panel, { height: panelHeight }]} pointerEvents="box-none">
-            <View style={editorStyles.header}>
-              <Text style={editorStyles.title}>{isEdit ? 'Edit entry' : 'Add journal entry'}</Text>
+          <View
+            style={[
+              editorStyles.panel,
+              {
+                height: panelHeight,
+                backgroundColor: palette.cardElevated,
+                borderRadius: shape.cardRadius,
+                borderCurve: shape.borderCurve,
+              },
+            ]}
+            pointerEvents="box-none"
+          >
+            <View style={[editorStyles.header, { borderBottomColor: palette.separator }]}>
+              <Text style={text.headline}>{isEdit ? 'Edit entry' : 'Add journal entry'}</Text>
               <TouchableOpacity onPress={performClose}>
-                <Text style={editorStyles.close}>Save</Text>
+                <Text style={[text.body, { color: palette.tint }]}>Save</Text>
               </TouchableOpacity>
             </View>
             <ScrollView style={editorStyles.scroll} contentContainerStyle={editorStyles.scrollContent}>
               <TouchableOpacity
-                style={editorStyles.dateButton}
+                style={[editorStyles.dateButton, { backgroundColor: palette.card }]}
                 onPress={() => setShowDatePicker(true)}
               >
-                <Ionicons name="calendar-outline" size={18} color={colors.accent} style={editorStyles.dateIcon} />
-                <Text style={editorStyles.dateText}>{formatDateDisplay(formatDateKey(selectedDate))}</Text>
+                <Ionicons name="calendar-outline" size={18} color={palette.tint} style={editorStyles.dateIcon} />
+                <Text style={text.body}>{formatDateDisplay(formatDateKey(selectedDate))}</Text>
               </TouchableOpacity>
               <TextInput
-                style={editorStyles.input}
+                style={[text.body, editorStyles.input]}
                 placeholder="Start writing…"
-                placeholderTextColor={colors.textTertiary}
+                placeholderTextColor={palette.tertiaryLabel}
                 value={value}
                 onChangeText={setValue}
                 multiline
@@ -158,20 +171,20 @@ export function JournalEditor({ date, initialText, onClose, entryId = null }) {
         <>
           {Platform.OS === 'ios' ? (
             <View style={editorStyles.datePickerModal}>
-              <View style={editorStyles.datePickerContainer}>
-                <View style={editorStyles.datePickerHeader}>
+              <View style={[editorStyles.datePickerContainer, { backgroundColor: palette.cardElevated }]}>
+                <View style={[editorStyles.datePickerHeader, { borderBottomColor: palette.separator }]}>
                   <TouchableOpacity
                     onPress={() => setShowDatePicker(false)}
                   >
-                    <Text style={editorStyles.datePickerCancel}>Cancel</Text>
+                    <Text style={[text.body, { color: palette.secondaryLabel }]}>Cancel</Text>
                   </TouchableOpacity>
-                  <Text style={editorStyles.datePickerTitle}>Select Date</Text>
+                  <Text style={text.headline}>Select Date</Text>
                   <TouchableOpacity
                     onPress={() => {
                       setShowDatePicker(false);
                     }}
                   >
-                    <Text style={editorStyles.datePickerConfirm}>Done</Text>
+                    <Text style={[text.body, { color: palette.tint, fontWeight: '600' }]}>Done</Text>
                   </TouchableOpacity>
                 </View>
                 <DateTimePicker
@@ -203,31 +216,33 @@ export function JournalEditor({ date, initialText, onClose, entryId = null }) {
 }
 
 export default function JournalEntry() {
+  const { palette, text } = useTheme();
   const today = getTodayKey();
   const [showEditor, setShowEditor] = useState(false);
-  const navigation = useNavigation();
 
   return (
     <View style={styles.wrap}>
-      <View style={styles.labelRow}>
-        <View style={styles.labelWithIcon}>
-          <Ionicons name="pencil-outline" size={14} color={colors.textSecondary} style={styles.pencilIcon} />
-          <Text style={styles.label}>Journal</Text>
-        </View>
-        <TouchableOpacity
-          onPress={() => navigation.navigate('JournalHistory')}
-          style={styles.historyButton}
-        >
-          <Text style={styles.historyButtonText}>Journal history</Text>
-        </TouchableOpacity>
-      </View>
-      <TouchableOpacity
-        style={styles.card}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Add journal entry"
         onPress={() => setShowEditor(true)}
-        activeOpacity={0.8}
+        style={({ pressed }) => pressed && styles.pressed}
       >
-        <Text style={styles.placeholder}>Start writing…</Text>
-      </TouchableOpacity>
+        <Card style={styles.promptCard}>
+          <Text style={[text.title2, styles.promptTitle]}>
+            What's on your mind?
+          </Text>
+          <Text style={[text.footnote, styles.promptSub]}>
+            Write a few lines about today.
+          </Text>
+          <View style={[styles.beginButton, { backgroundColor: palette.label }]}>
+            <Ionicons name="create" size={16} color={palette.background} />
+            <Text style={[text.subheadline, { color: palette.background }]}>
+              Begin
+            </Text>
+          </View>
+        </Card>
+      </Pressable>
       {showEditor && (
         <JournalEditor
           date={today}
@@ -241,44 +256,30 @@ export default function JournalEntry() {
 
 const styles = StyleSheet.create({
   wrap: {
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.md,
+    marginHorizontal: 20,
   },
-  labelRow: {
+  promptCard: {
+    alignItems: 'center',
+    paddingVertical: 28,
+  },
+  promptTitle: {
+    textAlign: 'center',
+  },
+  promptSub: {
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  beginButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.xs,
+    gap: 6,
+    paddingHorizontal: 22,
+    height: 40,
+    borderRadius: 20,
+    marginTop: 18,
   },
-  labelWithIcon: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  pencilIcon: {
-    marginRight: spacing.xxs,
-  },
-  label: {
-    fontSize: typography.footnote.fontSize,
-    color: colors.textSecondary,
-  },
-  historyButton: {
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.sm,
-  },
-  historyButtonText: {
-    fontSize: typography.footnote.fontSize,
-    color: colors.accent,
-  },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    minHeight: 80,
-    justifyContent: 'center',
-  },
-  placeholder: {
-    fontSize: typography.body.fontSize,
-    color: colors.textTertiary,
+  pressed: {
+    opacity: 0.7,
   },
 });
 
@@ -300,53 +301,34 @@ const editorStyles = StyleSheet.create({
     alignItems: 'center',
   },
   panel: {
-    backgroundColor: colors.background,
-    borderRadius: 16,
     width: '90%',
-    paddingBottom: spacing.xl,
+    paddingBottom: 32,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  title: {
-    fontSize: typography.headline.fontSize,
-    fontWeight: typography.headline.fontWeight,
-    color: colors.textPrimary,
-  },
-  close: {
-    fontSize: typography.body.fontSize,
-    color: colors.accent,
   },
   scroll: {
     flex: 1,
   },
   scrollContent: {
-    padding: spacing.md,
+    padding: 16,
   },
   dateButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.sm,
-    padding: spacing.sm,
-    marginBottom: spacing.md,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
   },
   dateIcon: {
-    marginRight: spacing.xs,
-  },
-  dateText: {
-    fontSize: typography.body.fontSize,
-    color: colors.textPrimary,
+    marginRight: 8,
   },
   input: {
-    fontSize: typography.body.fontSize,
-    color: colors.textPrimary,
     minHeight: 120,
     textAlignVertical: 'top',
   },
@@ -360,32 +342,16 @@ const editorStyles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   datePickerContainer: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: borderRadius.lg,
-    borderTopRightRadius: borderRadius.lg,
-    paddingBottom: spacing.lg,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingBottom: 24,
   },
   datePickerHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  datePickerCancel: {
-    fontSize: typography.body.fontSize,
-    color: colors.textSecondary,
-  },
-  datePickerTitle: {
-    fontSize: typography.headline.fontSize,
-    fontWeight: typography.headline.fontWeight,
-    color: colors.textPrimary,
-  },
-  datePickerConfirm: {
-    fontSize: typography.body.fontSize,
-    color: colors.accent,
-    fontWeight: '600',
   },
 });

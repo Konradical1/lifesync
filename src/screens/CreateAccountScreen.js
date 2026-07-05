@@ -3,9 +3,8 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
+  Pressable,
   StyleSheet,
-  Image,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
@@ -13,10 +12,20 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../store/AuthContext';
-import { colors, spacing, typography, fontFamilyMedium, fontFamilySemiBold, fontFamilyBold, borderRadius } from '../theme/constants';
+import { useTheme } from '../store/ThemeContext';
+import { fonts } from '../theme/ios';
+import SocialAuthButtons from '../components/Auth/SocialAuthButtons';
+
+const SCREEN_MARGIN = 24;
+const HERO_TOP_OFFSET = 60;
+const INPUT_HEIGHT = 48;
+const INPUT_RADIUS = 14;
+const CTA_HEIGHT = 48;
+const MIN_PASSWORD_LENGTH = 6;
 
 export default function CreateAccountScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const { palette, text, shape } = useTheme();
   const { signUp } = useAuth();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -29,7 +38,7 @@ export default function CreateAccountScreen({ navigation }) {
       setError('Please fill in all fields.');
       return;
     }
-    if (password.length < 6) {
+    if (password.length < MIN_PASSWORD_LENGTH) {
       setError('Password must be at least 6 characters.');
       return;
     }
@@ -46,35 +55,49 @@ export default function CreateAccountScreen({ navigation }) {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: palette.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
-        contentContainerStyle={[styles.inner, { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 24 }]}
+        contentContainerStyle={[
+          styles.inner,
+          {
+            paddingTop: insets.top + HERO_TOP_OFFSET,
+            paddingBottom: insets.bottom + 24,
+          },
+        ]}
         keyboardShouldPersistTaps="handled"
       >
-        <Image
-          source={require('../../assets/JournalXWithText.png')}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-
-        <Text style={styles.heading}>Create your account</Text>
+        <Text style={text.display} accessibilityRole="header">
+          let's begin.
+        </Text>
+        <Text style={[text.footnote, styles.subtitle]}>
+          A few details and your journal is ready.
+        </Text>
 
         {!!error && (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
+          <Text
+            style={[text.footnote, styles.error, { color: palette.red }]}
+            accessibilityRole="alert"
+          >
+            {error}
+          </Text>
         )}
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Username</Text>
+          <Text style={[text.eyebrow, styles.label]}>
+            {'Username'.toUpperCase()}
+          </Text>
           <TextInput
-            style={styles.input}
+            style={[
+              text.body,
+              styles.input,
+              { backgroundColor: palette.fill, borderCurve: shape.borderCurve },
+            ]}
             value={username}
             onChangeText={setUsername}
             placeholder="Your name"
-            placeholderTextColor={colors.textTertiary}
+            placeholderTextColor={palette.tertiaryLabel}
             autoCapitalize="words"
             textContentType="name"
             autoComplete="name"
@@ -82,13 +105,19 @@ export default function CreateAccountScreen({ navigation }) {
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Email</Text>
+          <Text style={[text.eyebrow, styles.label]}>
+            {'Email'.toUpperCase()}
+          </Text>
           <TextInput
-            style={styles.input}
+            style={[
+              text.body,
+              styles.input,
+              { backgroundColor: palette.fill, borderCurve: shape.borderCurve },
+            ]}
             value={email}
             onChangeText={setEmail}
             placeholder="you@example.com"
-            placeholderTextColor={colors.textTertiary}
+            placeholderTextColor={palette.tertiaryLabel}
             autoCapitalize="none"
             keyboardType="email-address"
             textContentType="emailAddress"
@@ -97,37 +126,56 @@ export default function CreateAccountScreen({ navigation }) {
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Password</Text>
+          <Text style={[text.eyebrow, styles.label]}>
+            {'Password'.toUpperCase()}
+          </Text>
           <TextInput
-            style={styles.input}
+            style={[
+              text.body,
+              styles.input,
+              { backgroundColor: palette.fill, borderCurve: shape.borderCurve },
+            ]}
             value={password}
             onChangeText={setPassword}
             placeholder="At least 6 characters"
-            placeholderTextColor={colors.textTertiary}
+            placeholderTextColor={palette.tertiaryLabel}
             secureTextEntry
             textContentType="newPassword"
             autoComplete="new-password"
           />
         </View>
 
-        <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Create account"
           onPress={handleCreate}
           disabled={loading}
-          activeOpacity={0.8}
+          style={[
+            styles.button,
+            { backgroundColor: palette.label },
+            loading && styles.buttonDisabled,
+          ]}
         >
           {loading ? (
-            <ActivityIndicator color={colors.background} />
+            <ActivityIndicator color={palette.background} />
           ) : (
-            <Text style={styles.buttonText}>Create Account</Text>
+            <Text style={[text.subheadline, { color: palette.background }]}>
+              Create Account
+            </Text>
           )}
-        </TouchableOpacity>
+        </Pressable>
+
+        <SocialAuthButtons onError={setError} disabled={loading} />
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Already have an account? </Text>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={styles.footerLink}>Sign in</Text>
-          </TouchableOpacity>
+          <Text style={text.footnote}>Already have an account? </Text>
+          <Pressable accessibilityRole="button" onPress={() => navigation.goBack()}>
+            <Text
+              style={[text.footnote, styles.footerLink, { color: palette.tint }]}
+            >
+              Sign in
+            </Text>
+          </Pressable>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -137,87 +185,46 @@ export default function CreateAccountScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
   },
   inner: {
     flexGrow: 1,
-    paddingHorizontal: spacing.lg,
-    justifyContent: 'center',
+    paddingHorizontal: SCREEN_MARGIN,
   },
-  logo: {
-    width: 200,
-    height: 48,
-    alignSelf: 'center',
-    marginBottom: spacing.xl,
+  subtitle: {
+    marginTop: 8,
+    marginBottom: 36,
   },
-  heading: {
-    fontSize: typography.title2.fontSize,
-    fontWeight: typography.title2.fontWeight,
-    fontFamily: fontFamilyBold,
-    color: colors.textPrimary,
-    textAlign: 'center',
-    marginBottom: spacing.lg,
-  },
-  errorBox: {
-    backgroundColor: 'rgba(239,68,68,0.15)',
-    borderRadius: borderRadius.sm,
-    padding: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  errorText: {
-    color: '#EF4444',
-    fontSize: typography.footnote.fontSize,
-    fontFamily: fontFamilyMedium,
-    textAlign: 'center',
+  error: {
+    marginBottom: 16,
   },
   inputGroup: {
-    marginBottom: spacing.md,
+    marginBottom: 20,
   },
   label: {
-    fontSize: typography.footnote.fontSize,
-    fontFamily: fontFamilySemiBold,
-    color: colors.textSecondary,
-    marginBottom: spacing.xxs,
+    marginBottom: 8,
   },
   input: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: borderRadius.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 14,
-    fontSize: typography.body.fontSize,
-    fontFamily: fontFamilyMedium,
-    color: colors.textPrimary,
+    height: INPUT_HEIGHT,
+    borderRadius: INPUT_RADIUS,
+    paddingHorizontal: 16,
   },
   button: {
-    backgroundColor: colors.accent,
-    borderRadius: borderRadius.sm,
-    paddingVertical: 16,
+    height: CTA_HEIGHT,
+    borderRadius: CTA_HEIGHT / 2,
     alignItems: 'center',
-    marginTop: spacing.sm,
+    justifyContent: 'center',
+    marginTop: 12,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
-  buttonText: {
-    fontSize: typography.body.fontSize,
-    fontFamily: fontFamilySemiBold,
-    color: colors.background,
-  },
   footer: {
     flexDirection: 'row',
+    alignItems: 'baseline',
     justifyContent: 'center',
-    marginTop: spacing.lg,
-  },
-  footerText: {
-    fontSize: typography.footnote.fontSize,
-    fontFamily: fontFamilyMedium,
-    color: colors.textSecondary,
+    marginTop: 24,
   },
   footerLink: {
-    fontSize: typography.footnote.fontSize,
-    fontFamily: fontFamilySemiBold,
-    color: colors.accent,
+    fontFamily: fonts.bodyMedium,
   },
 });

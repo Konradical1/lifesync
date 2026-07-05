@@ -2,18 +2,20 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { formatTime12h } from '../../utils/time';
 import { MOOD_OPTIONS } from '../../store/mockData';
-import { colors, typography } from '../../theme/constants';
+import { useTheme } from '../../store/ThemeContext';
+import { fonts } from '../../theme/ios';
 
 function getMoodLabel(id) {
   return MOOD_OPTIONS.find((m) => m.id === id)?.label ?? id;
 }
 
-function getMoodColor(id) {
-  return MOOD_OPTIONS.find((m) => m.id === id)?.color ?? colors.textSecondary;
+function getMoodColor(id, fallback) {
+  return MOOD_OPTIONS.find((m) => m.id === id)?.color ?? fallback;
 }
 
 export default function MoodCard({ mood, compact = false, horizontal = false, showBar = true, fillHeight = false }) {
-  const color = getMoodColor(mood.emotion);
+  const { palette, text } = useTheme();
+  const color = getMoodColor(mood.emotion, palette.secondaryLabel);
   const startTime = mood.startTime ?? mood.time ?? '00:00';
   const endTime = mood.endTime ?? '';
 
@@ -22,6 +24,7 @@ export default function MoodCard({ mood, compact = false, horizontal = false, sh
   return (
     <View style={[
       styles.card,
+      { backgroundColor: palette.card },
       compact && styles.cardCompact,
       horizontal && styles.cardHorizontal,
       fillHeight && styles.cardFill,
@@ -35,15 +38,24 @@ export default function MoodCard({ mood, compact = false, horizontal = false, sh
         {horizontal ? (
           <>
             <View style={[styles.dot, { backgroundColor: color }]} />
-            <Text style={styles.labelInline} numberOfLines={1}>{getMoodLabel(mood.emotion)}</Text>
+            <Text
+              style={[text.caption, styles.labelInline, { color: palette.label }]}
+              numberOfLines={1}
+            >
+              {getMoodLabel(mood.emotion)}
+            </Text>
             <Text style={[styles.timeInline, { color }]}>{timeRange}</Text>
           </>
         ) : (
           <>
-            <Text style={[styles.time, { color }]}>{timeRange}</Text>
-            <Text style={styles.label}>{getMoodLabel(mood.emotion)}</Text>
+            <Text style={[text.caption, styles.time, { color }]}>{timeRange}</Text>
+            <Text style={[text.subheadline, { color: palette.label }]}>
+              {getMoodLabel(mood.emotion)}
+            </Text>
             {mood.intensity != null && (
-              <Text style={styles.intensity}>Intensity: {mood.intensity}</Text>
+              <Text style={[styles.intensity, { color: palette.tertiaryLabel }]}>
+                Intensity: {mood.intensity}
+              </Text>
             )}
           </>
         )}
@@ -55,7 +67,6 @@ export default function MoodCard({ mood, compact = false, horizontal = false, sh
 const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
-    backgroundColor: colors.surface,
     borderRadius: 6,
     overflow: 'hidden',
   },
@@ -94,26 +105,20 @@ const styles = StyleSheet.create({
   },
   labelInline: {
     flex: 1,
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.textPrimary,
   },
   timeInline: {
+    fontFamily: fonts.bodyMedium,
     fontSize: 11,
+    lineHeight: 14,
     marginLeft: 4,
   },
   time: {
-    fontSize: typography.caption1.fontSize,
     marginBottom: 2,
   },
-  label: {
-    fontSize: typography.subhead.fontSize,
-    fontWeight: '600',
-    color: colors.textPrimary,
-  },
   intensity: {
+    fontFamily: fonts.body,
     fontSize: 11,
-    color: colors.textTertiary,
+    lineHeight: 14,
     marginTop: 2,
   },
 });

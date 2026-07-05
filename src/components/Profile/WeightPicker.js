@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import { colors, typography } from '../../theme/constants';
+import { useTheme } from '../../store/ThemeContext';
+import { fonts } from '../../theme/ios';
 
 const MIN_WEIGHT = 50;
 const MAX_WEIGHT = 500;
@@ -9,6 +10,7 @@ const MAX_WEIGHT = 500;
 const ITEMS = Array.from({ length: MAX_WEIGHT - MIN_WEIGHT + 1 }, (_, i) => MIN_WEIGHT + i);
 
 export default function WeightPicker({ value, onValueChange }) {
+  const { palette } = useTheme();
   const numericValue = parseInt(value, 10) || 150;
 
   return (
@@ -17,7 +19,11 @@ export default function WeightPicker({ value, onValueChange }) {
         selectedValue={numericValue}
         onValueChange={(v) => onValueChange(String(v))}
         style={styles.picker}
-        itemStyle={styles.pickerItem}
+        itemStyle={{
+          fontFamily: fonts.displayBold,
+          fontSize: 20,
+          color: palette.label,
+        }}
       >
         {ITEMS.map((n) => (
           <Picker.Item key={n} label={`${n} lbs`} value={n} />
@@ -33,10 +39,5 @@ const styles = StyleSheet.create({
   },
   picker: {
     width: '100%',
-  },
-  pickerItem: {
-    fontSize: typography.title3.fontSize,
-    fontWeight: '500',
-    color: colors.textPrimary,
   },
 });

@@ -3,7 +3,8 @@ import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { EVENT_ICON_NAMES, EVENT_TYPES } from "../../store/mockData";
 import { formatTime12h } from "../../utils/time";
-import { colors, spacing, typography } from "../../theme/constants";
+import { useTheme } from "../../store/ThemeContext";
+import { fonts } from "../../theme/ios";
 
 function getEventDescription(event) {
   switch (event.type) {
@@ -36,12 +37,13 @@ function getEventTimeRange(event) {
 export default function EventCard({
   event,
   onPress,
-  color = colors.accent,
+  color,
   compact = false,
   horizontal = false,
   pressable = true,
 }) {
-  const eventColor = color;
+  const { palette, text } = useTheme();
+  const eventColor = color ?? palette.tint;
 
   if (compact) {
     const desc = getEventDescription(event);
@@ -51,10 +53,7 @@ export default function EventCard({
         style={[
           compactStyles.card,
           horizontal && compactStyles.cardHorizontal,
-          {
-            backgroundColor: eventColor + "24",
-            borderColor: eventColor + "55",
-          },
+          { backgroundColor: eventColor + "24" },
         ]}
         onPress={pressable ? () => onPress(event) : undefined}
         activeOpacity={pressable ? 0.8 : undefined}
@@ -80,7 +79,11 @@ export default function EventCard({
                 style={compactStyles.iconInline}
               />
               <Text
-                style={compactStyles.desc}
+                style={[
+                  text.caption,
+                  compactStyles.desc,
+                  { color: palette.label },
+                ]}
                 numberOfLines={1}
                 ellipsizeMode="tail"
               >
@@ -102,7 +105,14 @@ export default function EventCard({
                   {formatTime12h(event.time ?? event.startTime)}
                 </Text>
               </View>
-              <Text style={compactStyles.desc} numberOfLines={2}>
+              <Text
+                style={[
+                  text.caption,
+                  compactStyles.desc,
+                  { color: palette.label },
+                ]}
+                numberOfLines={2}
+              >
                 {desc}
               </Text>
             </>
@@ -114,13 +124,13 @@ export default function EventCard({
 
   return (
     <TouchableOpacity
-      style={styles.card}
+      style={[styles.card, { backgroundColor: palette.card }]}
       onPress={() => onPress(event)}
       activeOpacity={0.8}
     >
       <View style={[styles.bar, { backgroundColor: eventColor }]} />
       <View style={styles.content}>
-        <Text style={[styles.time, { color: eventColor }]}>
+        <Text style={[text.caption, styles.time, { color: eventColor }]}>
           {getEventTimeRange(event) ||
             formatTime12h(event.time ?? event.startTime)}
         </Text>
@@ -130,7 +140,10 @@ export default function EventCard({
           color={eventColor}
           style={styles.icon}
         />
-        <Text style={styles.description} numberOfLines={1}>
+        <Text
+          style={[text.caption, styles.description, { color: palette.label }]}
+          numberOfLines={1}
+        >
           {getEventDescription(event)}
         </Text>
       </View>
@@ -141,12 +154,9 @@ export default function EventCard({
 const styles = StyleSheet.create({
   card: {
     flexDirection: "row",
-    backgroundColor: colors.surface,
     borderRadius: 12,
     overflow: "hidden",
     marginBottom: 4,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   bar: {
     width: 4,
@@ -158,7 +168,6 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   time: {
-    fontSize: typography.caption1.fontSize,
     width: 48,
   },
   icon: {
@@ -166,8 +175,6 @@ const styles = StyleSheet.create({
   },
   description: {
     flex: 1,
-    fontSize: typography.caption1.fontSize,
-    color: colors.textPrimary,
   },
 });
 
@@ -178,14 +185,13 @@ const compactStyles = StyleSheet.create({
     marginVertical: 1,
     borderRadius: 12,
     overflow: "hidden",
-    borderWidth: 1,
   },
   cardHorizontal: {
     marginVertical: 2,
   },
   inner: {
     flex: 1,
-    padding: spacing.xs,
+    padding: 8,
     gap: 4,
   },
   innerHorizontal: {
@@ -194,20 +200,20 @@ const compactStyles = StyleSheet.create({
     gap: 4,
   },
   time: {
-    ...typography.caption2,
-    fontFamily: typography.fontFamilySemiBold,
+    fontFamily: fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 14,
   },
   timeInline: {
+    fontFamily: fonts.bodyMedium,
     fontSize: 11,
+    lineHeight: 14,
     marginLeft: "auto",
   },
   iconInline: {
     marginRight: 2,
   },
   desc: {
-    ...typography.caption1,
-    fontFamily: typography.fontFamilySemiBold,
-    color: colors.textPrimary,
     flex: 1,
   },
   titleRow: {

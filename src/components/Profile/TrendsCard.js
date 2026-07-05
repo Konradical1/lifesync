@@ -1,23 +1,28 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing, typography, borderRadius } from '../../theme/constants';
+import { EVENT_TYPE_COLORS } from '../../theme/constants';
+import { useTheme } from '../../store/ThemeContext';
 
 function TrendItem({ icon, iconColor, label, value }) {
+  const { palette, text } = useTheme();
   return (
     <View style={styles.item}>
       <View style={[styles.iconWrap, { backgroundColor: iconColor + '18' }]}>
         <Ionicons name={icon} size={16} color={iconColor} />
       </View>
       <View style={styles.itemText}>
-        <Text style={styles.itemLabel}>{label}</Text>
-        <Text style={styles.itemValue}>{value}</Text>
+        <Text style={text.subheadline}>{label}</Text>
+        <Text style={[text.subheadline, { color: palette.secondaryLabel }]}>
+          {value}
+        </Text>
       </View>
     </View>
   );
 }
 
 export default function TrendsCard({ events, moodEntries, journal }) {
+  const { palette, text, shape } = useTheme();
   const today = new Date();
   const todayStr = formatDate(today);
 
@@ -52,13 +57,20 @@ export default function TrendsCard({ events, moodEntries, journal }) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.card}>
-        <Text style={styles.sectionLabel}>This Week</Text>
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: palette.card, borderCurve: shape.borderCurve },
+        ]}
+      >
+        <Text style={[text.eyebrow, styles.sectionLabel]}>
+          {'This Week'.toUpperCase()}
+        </Text>
         <View style={styles.grid}>
           {streak > 0 && (
             <TrendItem
               icon="flame-outline"
-              iconColor={colors.eventExercise}
+              iconColor={EVENT_TYPE_COLORS.exercise}
               label="Logging streak"
               value={`${streak} of 7 days`}
             />
@@ -66,7 +78,7 @@ export default function TrendsCard({ events, moodEntries, journal }) {
           {sleepCount > 0 && (
             <TrendItem
               icon="moon-outline"
-              iconColor={colors.eventSleep}
+              iconColor={EVENT_TYPE_COLORS.sleep}
               label="Sleep logged"
               value={`${sleepCount} night${sleepCount !== 1 ? 's' : ''}`}
             />
@@ -74,7 +86,7 @@ export default function TrendsCard({ events, moodEntries, journal }) {
           {moodCount > 0 && (
             <TrendItem
               icon="happy-outline"
-              iconColor={colors.eventMeds}
+              iconColor={EVENT_TYPE_COLORS.meds}
               label="Mood check-ins"
               value={`${moodCount} entr${moodCount !== 1 ? 'ies' : 'y'}`}
             />
@@ -94,37 +106,28 @@ function formatDate(d) {
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: spacing.md,
-    marginBottom: spacing.md,
+    paddingHorizontal: 20,
+    marginBottom: 16,
   },
   card: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.md,
+    borderRadius: 20,
+    padding: 16,
   },
   sectionLabel: {
-    fontSize: typography.footnote.fontSize,
-    fontWeight: '600',
-    fontFamily: typography.fontFamilySemiBold,
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: spacing.sm,
+    marginBottom: 12,
   },
   grid: {
-    gap: spacing.sm,
+    gap: 12,
   },
   item: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: 12,
   },
   iconWrap: {
     width: 32,
     height: 32,
-    borderRadius: borderRadius.sm,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -133,15 +136,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  itemLabel: {
-    fontSize: typography.subhead.fontSize,
-    fontFamily: typography.fontFamilyMedium,
-    color: colors.textPrimary,
-  },
-  itemValue: {
-    fontSize: typography.subhead.fontSize,
-    fontFamily: typography.fontFamilyMedium,
-    color: colors.textSecondary,
   },
 });

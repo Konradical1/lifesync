@@ -1,14 +1,10 @@
 import React from "react";
-import { View, Text, StyleSheet, Platform } from "react-native";
+import { View, StyleSheet } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import {
-  colors,
-  spacing,
-  typography,
-  fontFamilyMedium,
-  fontFamilyBold,
-} from "../theme/constants";
+import { LiquidGlass } from "../components/ui/LiquidGlass";
+import { useTheme } from "../store/ThemeContext";
 import HomeStack from "./HomeStack";
 import InsightsStack from "./InsightsStack";
 import AddEventStack from "./AddEventStack";
@@ -17,31 +13,43 @@ import SettingsStack from "./SettingsStack";
 
 const Tab = createBottomTabNavigator();
 
-function AddEventTabIcon({ focused }) {
+const TAB_BAR_HEIGHT = 64;
+const TAB_BAR_RADIUS = 32;
+const TAB_BAR_MARGIN = 16;
+const ADD_BUTTON_SIZE = 40;
+
+function makeTabIcon(name) {
+  return ({ focused, color }) => (
+    <Ionicons name={focused ? name : `${name}-outline`} size={24} color={color} />
+  );
+}
+
+function AddButton({ tint }) {
   return (
-    <View style={styles.addButtonWrapper}>
-      <View style={[styles.addButtonGlow]} />
-      <View style={[styles.addButton, focused && styles.addButtonFocused]}>
-        <Text
-          style={[styles.addButtonText, focused && styles.addButtonTextFocused]}
-        >
-          +
-        </Text>
-      </View>
+    <View style={[styles.addButton, { backgroundColor: tint }]}>
+      <Ionicons name="add" size={26} color="#FFFFFF" />
     </View>
   );
 }
 
+/** iOS 26-style floating glass tab bar. */
 export default function TabNavigator() {
+  const insets = useSafeAreaInsets();
+  const { palette } = useTheme();
+
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarStyle: styles.tabBar,
-        tabBarActiveTintColor: colors.accent,
-        tabBarInactiveTintColor: colors.textSecondary,
+        tabBarStyle: [
+          styles.tabBar,
+          { bottom: Math.max(insets.bottom, 12) },
+        ],
+        tabBarActiveTintColor: palette.tint,
+        tabBarInactiveTintColor: palette.secondaryLabel,
         tabBarShowLabel: true,
         tabBarLabelStyle: styles.tabLabel,
+        tabBarBackground: () => <LiquidGlass style={styles.tabBarGlass} />,
       }}
     >
       <Tab.Screen
@@ -49,9 +57,7 @@ export default function TabNavigator() {
         component={HomeStack}
         options={{
           title: "Home",
-          tabBarIcon: ({ focused, color }) => (
-            <Ionicons name="home-outline" size={24} color={color} />
-          ),
+          tabBarIcon: makeTabIcon("home"),
         }}
       />
       <Tab.Screen
@@ -59,9 +65,7 @@ export default function TabNavigator() {
         component={InsightsStack}
         options={{
           title: "Insights",
-          tabBarIcon: ({ focused, color }) => (
-            <Ionicons name="stats-chart-outline" size={24} color={color} />
-          ),
+          tabBarIcon: makeTabIcon("stats-chart"),
         }}
       />
       <Tab.Screen
@@ -70,17 +74,25 @@ export default function TabNavigator() {
         options={{
           title: "",
           tabBarLabel: () => null,
-          tabBarIcon: ({ focused }) => <AddEventTabIcon focused={focused} />,
+          tabBarAccessibilityLabel: "Add event",
+          tabBarIcon: () => <AddButton tint={palette.tint} />,
         }}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            // Always resurface the type picker on tab press — otherwise React
+            // Navigation keeps whichever event screen was last opened focused
+            // forever, so Cancel-then-log-something-else gets stuck on it.
+            e.preventDefault();
+            navigation.navigate("AddEventTab", { screen: "EventTypeList" });
+          },
+        })}
       />
       <Tab.Screen
         name="CalendarTab"
         component={CalendarStack}
         options={{
           title: "Calendar",
-          tabBarIcon: ({ focused, color }) => (
-            <Ionicons name="calendar-outline" size={24} color={color} />
-          ),
+          tabBarIcon: makeTabIcon("calendar"),
         }}
       />
       <Tab.Screen
@@ -88,9 +100,7 @@ export default function TabNavigator() {
         component={SettingsStack}
         options={{
           title: "Settings",
-          tabBarIcon: ({ focused, color }) => (
-            <Ionicons name="settings-outline" size={24} color={color} />
-          ),
+          tabBarIcon: makeTabIcon("settings"),
         }}
       />
     </Tab.Navigator>
@@ -100,89 +110,31 @@ export default function TabNavigator() {
 const styles = StyleSheet.create({
   tabBar: {
     position: "absolute",
-    left: spacing.md,
-    right: spacing.md,
-    bottom: Platform.OS === "ios" ? spacing.md : spacing.sm,
-    height: Platform.OS === "ios" ? 78 : 70,
-    paddingTop: spacing.xs,
-    paddingBottom: Platform.OS === "ios" ? spacing.sm : spacing.xs,
-    borderRadius: 28,
-    backgroundColor: "rgba(22,27,34,0.92)",
+    left: TAB_BAR_MARGIN,
+    right: TAB_BAR_MARGIN,
+    height: TAB_BAR_HEIGHT,
+    paddingTop: 6,
+    paddingBottom: 8,
+    borderRadius: TAB_BAR_RADIUS,
+    backgroundColor: "transparent",
     borderTopWidth: 0,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-    overflow: "visible",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 14 },
-        shadowOpacity: 0.28,
-        shadowRadius: 24,
-      },
-      android: {
-        elevation: 10,
-      },
-    }),
+    elevation: 0,
+  },
+  tabBarGlass: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: TAB_BAR_RADIUS,
+    overflow: "hidden",
   },
   tabLabel: {
-    fontSize: typography.caption1.fontSize,
-    fontFamily: fontFamilyMedium,
-    marginTop: 2,
-  },
-  tabIcon: {
-    fontSize: 22,
-  },
-  addButtonWrapper: {
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: Platform.OS === "ios" ? 26 : 22,
-  },
-  addButtonGlow: {
-    position: "absolute",
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: colors.accent,
-    opacity: 0.22,
+    fontSize: 10,
+    fontWeight: "500",
   },
   addButton: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.accent,
+    width: ADD_BUTTON_SIZE,
+    height: ADD_BUTTON_SIZE,
+    borderRadius: ADD_BUTTON_SIZE / 2,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 6,
-    borderColor: "rgba(88,166,255,0.22)",
-    ...Platform.select({
-      ios: {
-        shadowColor: colors.accent,
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.9,
-        shadowRadius: 14,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
-  },
-  addButtonFocused: {
-    backgroundColor: colors.accent,
-    ...Platform.select({
-      ios: {
-        shadowColor: colors.accent,
-        shadowOpacity: 1,
-        shadowRadius: 18,
-      },
-    }),
-  },
-  addButtonText: {
-    fontSize: 38,
-    lineHeight: 40,
-    color: colors.background,
-    fontFamily: fontFamilyBold,
-  },
-  addButtonTextFocused: {
-    color: colors.background,
+    marginTop: 10,
   },
 });

@@ -1,17 +1,31 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform, ActivityIndicator, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Pressable,
+  StyleSheet,
+  Platform,
+  ActivityIndicator,
+  Alert,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useStore } from '../../store/useStore';
 import { EVENT_TYPES } from '../../store/mockData';
 import { formatTime12h } from '../../utils/time';
-import { colors, spacing, typography, borderRadius } from '../../theme/constants';
+import { useTheme } from '../../store/ThemeContext';
 import {
   isAppleHealthSleepAvailable,
   requestSleepPermissionAsync,
   fetchSleepSamplesAsync,
 } from '../../api/appleHealth';
+
+const CTA_HEIGHT = 48;
+const SECONDARY_HEIGHT = 44;
+const CONTROL_RADIUS = 14;
 
 function formatDateKey(d) {
   const y = d.getFullYear();
@@ -31,6 +45,7 @@ function generateId() {
 export default function SleepEventScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const { palette, text } = useTheme();
   const { dispatch } = useStore();
 
   const getStart = () => {
@@ -64,7 +79,7 @@ export default function SleepEventScreen() {
       if (!granted) {
         Alert.alert(
           'Access needed',
-          'Allow JournalX2 to read sleep data in Settings → Health → Data Access.'
+          'Allow LifeSync to read sleep data in Settings → Health → Data Access.'
         );
         setImportLoading(false);
         return;
@@ -107,21 +122,34 @@ export default function SleepEventScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: palette.background, paddingTop: insets.top + 12 },
+      ]}
+    >
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.backButton}>Cancel</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Log Sleep</Text>
-        <View style={{ width: 60 }} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Cancel"
+          hitSlop={8}
+          onPress={() => navigation.goBack()}
+          style={({ pressed }) => pressed && styles.pressed}
+        >
+          <Ionicons name="chevron-back" size={26} color={palette.label} />
+        </Pressable>
+        <Text style={text.title2}>log sleep.</Text>
       </View>
       <View style={styles.content}>
-        <Text style={styles.label}>Start time</Text>
+        <Text style={[text.eyebrow, styles.label]}>
+          {'Start time'.toUpperCase()}
+        </Text>
         <TouchableOpacity
-          style={styles.timeButton}
+          accessibilityRole="button"
+          style={[styles.timeButton, { backgroundColor: palette.fill }]}
           onPress={() => setShowStart(true)}
         >
-          <Text style={styles.timeText}>{formatTime12h(formatTime24h(startTime))}</Text>
+          <Text style={text.title2}>{formatTime12h(formatTime24h(startTime))}</Text>
         </TouchableOpacity>
         {showStart && (
           <DateTimePicker
@@ -134,12 +162,15 @@ export default function SleepEventScreen() {
             }}
           />
         )}
-        <Text style={[styles.label, { marginTop: spacing.lg }]}>End time</Text>
+        <Text style={[text.eyebrow, styles.label, styles.spacedLabel]}>
+          {'End time'.toUpperCase()}
+        </Text>
         <TouchableOpacity
-          style={styles.timeButton}
+          accessibilityRole="button"
+          style={[styles.timeButton, { backgroundColor: palette.fill }]}
           onPress={() => setShowEnd(true)}
         >
-          <Text style={styles.timeText}>{formatTime12h(formatTime24h(endTime))}</Text>
+          <Text style={text.title2}>{formatTime12h(formatTime24h(endTime))}</Text>
         </TouchableOpacity>
         {showEnd && (
           <DateTimePicker
@@ -154,19 +185,26 @@ export default function SleepEventScreen() {
         )}
         {isAppleHealthSleepAvailable() && (
           <TouchableOpacity
-            style={styles.importButton}
+            accessibilityRole="button"
+            style={[styles.importButton, { backgroundColor: palette.fill }]}
             onPress={handleImportFromAppleHealth}
             disabled={importLoading}
           >
             {importLoading ? (
-              <ActivityIndicator size="small" color={colors.accent} />
+              <ActivityIndicator size="small" color={palette.tint} />
             ) : (
-              <Text style={styles.importButtonText}>Import from Apple Health</Text>
+              <Text style={[text.subheadline, { color: palette.tint }]}>
+                Import from Apple Health
+              </Text>
             )}
           </TouchableOpacity>
         )}
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-          <Text style={styles.saveButtonText}>Save</Text>
+        <TouchableOpacity
+          accessibilityRole="button"
+          style={[styles.saveButton, { backgroundColor: palette.label }]}
+          onPress={handleSave}
+        >
+          <Text style={[text.headline, { color: palette.background }]}>Save</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -176,67 +214,43 @@ export default function SleepEventScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    paddingHorizontal: 20,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  backButton: {
-    fontSize: typography.body.fontSize,
-    color: colors.textSecondary,
-  },
-  title: {
-    fontSize: typography.headline.fontSize,
-    fontWeight: typography.headline.fontWeight,
-    color: colors.textPrimary,
+    gap: 10,
+    marginBottom: 24,
   },
   content: {
-    padding: spacing.md,
+    flex: 1,
   },
   label: {
-    fontSize: typography.footnote.fontSize,
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
+    marginBottom: 8,
+  },
+  spacedLabel: {
+    marginTop: 24,
   },
   timeButton: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.sm,
-    padding: spacing.md,
-  },
-  timeText: {
-    fontSize: typography.title2.fontSize,
-    color: colors.textPrimary,
+    borderRadius: CONTROL_RADIUS,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
   importButton: {
-    flexDirection: 'row',
+    height: SECONDARY_HEIGHT,
+    borderRadius: SECONDARY_HEIGHT / 2,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: spacing.md,
-    marginTop: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: borderRadius.md,
-  },
-  importButtonText: {
-    fontSize: typography.body.fontSize,
-    color: colors.accent,
+    marginTop: 28,
   },
   saveButton: {
-    backgroundColor: colors.accent,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
+    height: CTA_HEIGHT,
+    borderRadius: CTA_HEIGHT / 2,
     alignItems: 'center',
-    marginTop: spacing.xl,
+    justifyContent: 'center',
+    marginTop: 32,
   },
-  saveButtonText: {
-    fontSize: typography.headline.fontSize,
-    fontWeight: typography.headline.fontWeight,
-    color: colors.background,
+  pressed: {
+    opacity: 0.7,
   },
 });

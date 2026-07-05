@@ -1,4 +1,5 @@
 import { NOTIFICATIONS } from "./config";
+import { getAuthHeaders } from "./supabase";
 
 const TIMEOUT_MS = 8000;
 
@@ -15,8 +16,8 @@ export async function registerPushToken({ userId, token, timezone }) {
   try {
     const res = await fetch(NOTIFICATIONS.register, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, token, timezone }),
+      headers: await getAuthHeaders(),
+      body: JSON.stringify({ token, timezone }),
       signal: controller.signal,
     });
     clearTimeout(timeout);

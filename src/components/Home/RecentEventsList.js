@@ -1,12 +1,16 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRecentEvents } from '../../store/useStore';
 import { EVENT_ICON_NAMES, EVENT_TYPES } from '../../store/mockData';
 import { formatTime12h } from '../../utils/time';
-import { colors, spacing, typography, borderRadius } from '../../theme/constants';
 import { EVENT_TYPE_COLORS } from '../../theme/constants';
+import Card from '../ui/Card';
+import { useTheme } from '../../store/ThemeContext';
+
+const RECENT_EVENT_COUNT = 3;
+const ICON_BOX_SIZE = 30;
 
 function getEventDescription(event) {
   switch (event.type) {
@@ -25,8 +29,17 @@ function getEventDescription(event) {
   }
 }
 
+function getEventTime(event) {
+  if (event.type === EVENT_TYPES.other && event.startTime && event.endTime) {
+    return `${formatTime12h(event.startTime)}–${formatTime12h(event.endTime)}`;
+  }
+  return formatTime12h(event.time ?? event.startTime);
+}
+
+/** iOS inset-grouped list of the latest logged events. */
 export default function RecentEventsList() {
-  const events = useRecentEvents(3);
+  const { palette, text } = useTheme();
+  const events = useRecentEvents(RECENT_EVENT_COUNT);
   const navigation = useNavigation();
 
   const handlePress = (event) => {
@@ -36,82 +49,102 @@ export default function RecentEventsList() {
     });
   };
 
+  if (!events.length) {
+    return (
+      <Card style={styles.card}>
+        <Text style={[text.footnote, styles.emptyText]}>Nothing logged yet.</Text>
+      </Card>
+    );
+  }
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.sectionTitle}>Recent <Text style={styles.sectionTitleHighlight}>Events</Text></Text>
-      {events.map((event) => {
-        const eventColor = EVENT_TYPE_COLORS[event.type] ?? colors.accent;
+    <Card style={[styles.card, styles.listCard]}>
+      {events.map((event, index) => {
+        const eventColor = EVENT_TYPE_COLORS[event.type] ?? palette.tint;
         return (
-        <TouchableOpacity
-          key={event.id}
-          onPress={() => handlePress(event)}
-          style={[styles.card, { borderLeftColor: eventColor }]}
-          activeOpacity={0.8}
-        >
-          <Ionicons
-            name={EVENT_ICON_NAMES[event.type] ?? 'document-text-outline'}
-            size={22}
-            color={eventColor}
-            style={styles.icon}
-          />
-          <View style={styles.content}>
-            <Text style={[styles.time, { color: eventColor }]}>
-              {event.type === EVENT_TYPES.other && event.startTime && event.endTime
-                ? `${formatTime12h(event.startTime)}–${formatTime12h(event.endTime)}`
-                : formatTime12h(event.time ?? event.startTime)}
-            </Text>
-            <Text style={styles.description} numberOfLines={1}>
-              {getEventDescription(event)}
-            </Text>
-          </View>
-          <Text style={styles.arrow}>›</Text>
-        </TouchableOpacity>
+          <Pressable
+            key={event.id}
+            accessibilityRole="button"
+            accessibilityLabel={`${getEventDescription(event)}, ${getEventTime(event)}`}
+            onPress={() => handlePress(event)}
+            style={({ pressed }) => [
+              styles.row,
+              pressed && { backgroundColor: palette.cardElevated },
+            ]}
+          >
+            <View style={[styles.iconBox, { backgroundColor: eventColor }]}>
+              <Ionicons
+                name={EVENT_ICON_NAMES[event.type] ?? 'document-text-outline'}
+                size={16}
+                color="#FFFFFF"
+              />
+            </View>
+            <View
+              style={[
+                styles.rowContent,
+                index < events.length - 1 && {
+                  borderBottomWidth: StyleSheet.hairlineWidth,
+                  borderBottomColor: palette.separator,
+                },
+              ]}
+            >
+              <View style={styles.rowText}>
+                <Text style={[text.subheadline, styles.rowTitle]} numberOfLines={1}>
+                  {getEventDescription(event)}
+                </Text>
+                <Text style={[text.footnote, styles.rowTime]}>{getEventTime(event)}</Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={16}
+                color={palette.tertiaryLabel}
+              />
+            </View>
+          </Pressable>
         );
       })}
-    </View>
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.xl,
-  },
-  sectionTitle: {
-    fontSize: typography.footnote.fontSize,
-    color: colors.textSecondary,
-    marginBottom: spacing.sm,
-  },
-  sectionTitleHighlight: {
-    color: colors.accent,
-    fontWeight: '600',
-  },
   card: {
+    marginHorizontal: 20,
+  },
+  listCard: {
+    paddingVertical: 4,
+    paddingHorizontal: 0,
+  },
+  emptyText: {
+    textAlign: 'center',
+    paddingVertical: 8,
+  },
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.sm,
-    padding: spacing.sm,
-    marginBottom: spacing.xs,
-    borderLeftWidth: 4,
+    paddingLeft: 16,
   },
-  icon: {
-    marginRight: spacing.sm,
+  iconBox: {
+    width: ICON_BOX_SIZE,
+    height: ICON_BOX_SIZE,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
   },
-  content: {
+  rowContent: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingRight: 16,
   },
-  time: {
-    fontSize: typography.caption1.fontSize,
-    marginBottom: 2,
+  rowText: {
+    flex: 1,
+    minWidth: 0,
   },
-  description: {
-    fontSize: typography.subhead.fontSize,
-    color: colors.textPrimary,
-    fontWeight: '500',
-  },
-  arrow: {
-    fontSize: 18,
-    color: colors.textTertiary,
+  rowTitle: {},
+  rowTime: {
+    marginTop: 1,
   },
 });

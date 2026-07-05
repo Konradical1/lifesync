@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing, typography, borderRadius } from '../../theme/constants';
+import { useTheme } from '../../store/ThemeContext';
 
 const FIELDS = [
   { key: 'aiContext', label: 'AI Context', placeholder: 'Give the AI context about you…', isLargeField: true },
@@ -14,7 +14,8 @@ const FIELDS = [
   { key: 'waterGoalOz', label: 'Water Goal', placeholder: 'Not set', suffix: 'oz' },
 ];
 
-function FieldRow({ label, value, placeholder, suffix, onPress, isFirst, isLast }) {
+function FieldRow({ label, value, placeholder, suffix, onPress, isLast }) {
+  const { palette, text } = useTheme();
   const displayValue = value
     ? suffix
       ? `${value} ${suffix}`
@@ -25,32 +26,51 @@ function FieldRow({ label, value, placeholder, suffix, onPress, isFirst, isLast 
     <TouchableOpacity
       style={[
         styles.row,
-        isFirst && styles.rowFirst,
-        isLast && styles.rowLast,
-        !isLast && styles.rowBorder,
+        !isLast && {
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderBottomColor: palette.separator,
+        },
       ]}
       activeOpacity={0.6}
       onPress={onPress}
     >
-      <Text style={styles.rowLabel}>{label}</Text>
+      <Text style={[text.subheadline, styles.rowLabel]}>{label}</Text>
       <View style={styles.rowRight}>
         <Text
-          style={[styles.rowValue, !displayValue && styles.rowPlaceholder]}
+          style={[
+            text.subheadline,
+            styles.rowValue,
+            {
+              color: displayValue
+                ? palette.secondaryLabel
+                : palette.tertiaryLabel,
+            },
+          ]}
           numberOfLines={1}
         >
           {displayValue || placeholder}
         </Text>
-        <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+        <Ionicons
+          name="chevron-forward"
+          size={16}
+          color={palette.tertiaryLabel}
+        />
       </View>
     </TouchableOpacity>
   );
 }
 
 export default function AboutYouSection({ profile, onEditField }) {
+  const { palette, shape } = useTheme();
+
   return (
     <View style={styles.container}>
-      <Text style={styles.sectionLabel}>About You</Text>
-      <View style={styles.card}>
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: palette.card, borderCurve: shape.borderCurve },
+        ]}
+      >
         {FIELDS.map((field, idx) => (
           <FieldRow
             key={field.key}
@@ -58,7 +78,6 @@ export default function AboutYouSection({ profile, onEditField }) {
             value={profile[field.key]}
             placeholder={field.placeholder}
             suffix={field.suffix}
-            isFirst={idx === 0}
             isLast={idx === FIELDS.length - 1}
             onPress={() => onEditField(field.key, field.isLargeField)}
           />
@@ -70,66 +89,31 @@ export default function AboutYouSection({ profile, onEditField }) {
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  sectionLabel: {
-    fontSize: typography.footnote.fontSize,
-    fontWeight: '600',
-    fontFamily: typography.fontFamilySemiBold,
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: spacing.sm,
-    marginLeft: spacing.xxs,
+    paddingHorizontal: 20,
+    marginBottom: 24,
   },
   card: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: 20,
     overflow: 'hidden',
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.md,
-  },
-  rowFirst: {
-    borderTopLeftRadius: borderRadius.md,
-    borderTopRightRadius: borderRadius.md,
-  },
-  rowLast: {
-    borderBottomLeftRadius: borderRadius.md,
-    borderBottomRightRadius: borderRadius.md,
-  },
-  rowBorder: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
   },
   rowLabel: {
-    fontSize: typography.subhead.fontSize,
-    fontFamily: typography.fontFamilyMedium,
-    color: colors.textPrimary,
     flex: 1,
   },
   rowRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
+    gap: 8,
     flexShrink: 1,
     maxWidth: '55%',
   },
   rowValue: {
-    fontSize: typography.subhead.fontSize,
-    fontFamily: typography.fontFamilyMedium,
-    color: colors.textSecondary,
     textAlign: 'right',
-  },
-  rowPlaceholder: {
-    color: colors.textTertiary,
-    fontStyle: 'italic',
   },
 });

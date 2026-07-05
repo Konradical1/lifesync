@@ -1,11 +1,24 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useStore, useRecentMeds } from '../../store/useStore';
 import { EVENT_TYPES } from '../../store/mockData';
 import { getTimeNow24h } from '../../utils/time';
-import { colors, spacing, typography, borderRadius } from '../../theme/constants';
+import { useTheme } from '../../store/ThemeContext';
+
+const CTA_HEIGHT = 48;
+const CONTROL_RADIUS = 14;
+const CHIP_HEIGHT = 36;
 
 function formatDateKey(d) {
   const y = d.getFullYear();
@@ -14,7 +27,6 @@ function formatDateKey(d) {
   return `${y}-${m}-${day}`;
 }
 
-
 function generateId() {
   return 'e_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
 }
@@ -22,6 +34,7 @@ function generateId() {
 export default function MedsEventScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const { palette, text } = useTheme();
   const { dispatch } = useStore();
   const recentMeds = useRecentMeds();
 
@@ -51,31 +64,49 @@ export default function MedsEventScreen() {
     navigation.goBack();
   };
 
+  const saveDisabled = !name.trim();
+  const inputStyle = [
+    text.body,
+    styles.input,
+    { backgroundColor: palette.fill },
+  ];
+
   return (
     <ScrollView
-      style={[styles.container, { paddingTop: insets.top }]}
-      contentContainerStyle={styles.content}
+      style={[
+        styles.container,
+        { backgroundColor: palette.background, paddingTop: insets.top + 12 },
+      ]}
+      contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.backButton}>Cancel</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Log Meds</Text>
-        <View style={{ width: 60 }} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Cancel"
+          hitSlop={8}
+          onPress={() => navigation.goBack()}
+          style={({ pressed }) => pressed && styles.pressed}
+        >
+          <Ionicons name="chevron-back" size={26} color={palette.label} />
+        </Pressable>
+        <Text style={text.title2}>log meds.</Text>
       </View>
-      <View style={styles.body}>
+      <View style={styles.content}>
         {recentMeds.length > 0 && (
           <View style={styles.chipsSection}>
-            <Text style={styles.label}>Recent</Text>
+            <Text style={[text.eyebrow, styles.label]}>
+              {'Recent'.toUpperCase()}
+            </Text>
             <View style={styles.chipsRow}>
               {recentMeds.map((med) => (
                 <TouchableOpacity
                   key={med.name}
-                  style={styles.chip}
+                  accessibilityRole="button"
+                  style={[styles.chip, { backgroundColor: palette.fill }]}
                   onPress={() => handleChipPress(med)}
                 >
-                  <Text style={styles.chipText}>
+                  <Text style={[text.footnote, { color: palette.tint }]}>
                     {`${med.name} · ${med.dosage} ${med.unit || 'mg'}`}
                   </Text>
                 </TouchableOpacity>
@@ -83,32 +114,43 @@ export default function MedsEventScreen() {
             </View>
           </View>
         )}
-        <Text style={styles.label}>Name</Text>
+        <Text style={[text.eyebrow, styles.label]}>
+          {'Name'.toUpperCase()}
+        </Text>
         <TextInput
-          style={styles.input}
+          style={inputStyle}
           placeholder="Medication name"
-          placeholderTextColor={colors.textTertiary}
+          placeholderTextColor={palette.tertiaryLabel}
           value={name}
           onChangeText={setName}
         />
-        <Text style={styles.label}>Dosage</Text>
+        <Text style={[text.eyebrow, styles.label]}>
+          {'Dosage'.toUpperCase()}
+        </Text>
         <View style={styles.dosageRow}>
           <TextInput
-            style={[styles.input, styles.dosageInput]}
+            style={[...inputStyle, styles.dosageInput]}
             placeholder="0"
-            placeholderTextColor={colors.textTertiary}
+            placeholderTextColor={palette.tertiaryLabel}
             value={dosage}
             onChangeText={setDosage}
             keyboardType="number-pad"
           />
-          <Text style={styles.unit}>mg</Text>
+          <Text style={[text.body, { color: palette.secondaryLabel }]}>mg</Text>
         </View>
         <TouchableOpacity
-          style={styles.saveButton}
+          accessibilityRole="button"
+          style={[
+            styles.saveButton,
+            { backgroundColor: palette.label },
+            saveDisabled && styles.disabled,
+          ]}
           onPress={handleSave}
-          disabled={!name.trim()}
+          disabled={saveDisabled}
         >
-          <Text style={styles.saveButtonText}>Save</Text>
+          <Text style={[text.headline, { color: palette.background }]}>
+            Save
+          </Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -118,87 +160,65 @@ export default function MedsEventScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    paddingHorizontal: 20,
   },
-  content: {
-    paddingBottom: spacing.xl,
+  scrollContent: {
+    paddingBottom: 40,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    gap: 10,
+    marginBottom: 24,
   },
-  backButton: {
-    fontSize: typography.body.fontSize,
-    color: colors.textSecondary,
+  content: {
+    flex: 1,
   },
-  title: {
-    fontSize: typography.headline.fontSize,
-    fontWeight: typography.headline.fontWeight,
-    color: colors.textPrimary,
-  },
-  body: {
-    padding: spacing.md,
+  label: {
+    marginBottom: 8,
   },
   chipsSection: {
-    marginBottom: spacing.lg,
+    marginBottom: 24,
   },
   chipsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.xs,
+    gap: 8,
   },
   chip: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.full,
-  },
-  chipText: {
-    fontSize: typography.footnote.fontSize,
-    color: colors.accent,
-  },
-  label: {
-    fontSize: typography.footnote.fontSize,
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
+    height: CHIP_HEIGHT,
+    borderRadius: CHIP_HEIGHT / 2,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   input: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.sm,
-    padding: spacing.md,
-    fontSize: typography.body.fontSize,
-    color: colors.textPrimary,
-    marginBottom: spacing.md,
+    borderRadius: CONTROL_RADIUS,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 20,
   },
   dosageRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.md,
+    gap: 12,
+    marginBottom: 20,
   },
   dosageInput: {
     flex: 1,
     marginBottom: 0,
   },
-  unit: {
-    fontSize: typography.body.fontSize,
-    color: colors.textSecondary,
-    marginLeft: spacing.sm,
-  },
   saveButton: {
-    backgroundColor: colors.accent,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
+    height: CTA_HEIGHT,
+    borderRadius: CTA_HEIGHT / 2,
     alignItems: 'center',
-    marginTop: spacing.lg,
+    justifyContent: 'center',
+    marginTop: 16,
   },
-  saveButtonText: {
-    fontSize: typography.headline.fontSize,
-    fontWeight: typography.headline.fontWeight,
-    color: colors.background,
+  disabled: {
+    opacity: 0.45,
+  },
+  pressed: {
+    opacity: 0.7,
   },
 });

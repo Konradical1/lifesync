@@ -1,5 +1,6 @@
 {
   "compilerOptions": {},
   "extends": "expo/tsconfig.base",
-  "include": ["**/*.ts", "**/*.tsx", "vercel.d.ts"]
+  "include": ["**/*.ts", "**/*.tsx", "vercel.d.ts"],
+  "exclude": ["node_modules", "supabase/functions"]
 }

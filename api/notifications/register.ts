@@ -1,6 +1,7 @@
 /** DEPLOY: After editing this file (or any under api/), push to git so Vercel updates the API. */
 import type { VercelRequest, VercelResponse } from "vercel";
 import { createClient } from "@supabase/supabase-js";
+import { requireUser } from "../_lib/auth";
 
 const supabaseUrl = process.env.SUPABASE_URL ?? "";
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
@@ -15,11 +16,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: "Server misconfiguration" });
   }
 
-  const { userId, token, timezone } = req.body ?? {};
+  // Derive the user from the verified JWT — never trust a client-supplied id.
+  const userId = await requireUser(req, res);
+  if (!userId) return;
 
-  if (!userId || typeof userId !== "string") {
-    return res.status(400).json({ error: "Missing userId" });
-  }
+  const { token, timezone } = req.body ?? {};
+
   if (!token || typeof token !== "string" || !token.startsWith("ExponentPushToken[")) {
     return res.status(400).json({ error: "Invalid push token" });
   }

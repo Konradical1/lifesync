@@ -1,11 +1,24 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Pressable,
+  StyleSheet,
+  ActivityIndicator,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useStore } from '../../store/useStore';
 import { EVENT_TYPES } from '../../store/mockData';
 import { getTimeNow24h } from '../../utils/time';
-import { colors, spacing, typography, borderRadius } from '../../theme/constants';
+import { useTheme } from '../../store/ThemeContext';
+
+const CTA_HEIGHT = 48;
+const CONTROL_RADIUS = 14;
+const CHIP_HEIGHT = 36;
 
 function formatDateKey(d) {
   const y = d.getFullYear();
@@ -13,7 +26,6 @@ function formatDateKey(d) {
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
-
 
 function generateId() {
   return 'e_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
@@ -34,6 +46,7 @@ function mockExtractCalories(description, duration) {
 export default function ExerciseEventScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const { palette, text } = useTheme();
   const { dispatch } = useStore();
 
   const [description, setDescription] = useState('');
@@ -68,49 +81,85 @@ export default function ExerciseEventScreen() {
     setExtracted(true);
   };
 
+  const saveDisabled = loading || !description.trim();
+  const inputStyle = [
+    text.body,
+    styles.input,
+    { backgroundColor: palette.fill },
+  ];
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: palette.background, paddingTop: insets.top + 12 },
+      ]}
+    >
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.backButton}>Cancel</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Log Exercise</Text>
-        <View style={{ width: 60 }} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Cancel"
+          hitSlop={8}
+          onPress={() => navigation.goBack()}
+          style={({ pressed }) => pressed && styles.pressed}
+        >
+          <Ionicons name="chevron-back" size={26} color={palette.label} />
+        </Pressable>
+        <Text style={text.title2}>log exercise.</Text>
       </View>
       <View style={styles.content}>
-        <Text style={styles.label}>What did you do?</Text>
+        <Text style={[text.eyebrow, styles.label]}>
+          {'What did you do?'.toUpperCase()}
+        </Text>
         <TextInput
-          style={styles.input}
+          style={inputStyle}
           placeholder="e.g. 30 min run"
-          placeholderTextColor={colors.textTertiary}
+          placeholderTextColor={palette.tertiaryLabel}
           value={description}
           onChangeText={setDescription}
         />
-        <Text style={styles.label}>Duration (minutes)</Text>
+        <Text style={[text.eyebrow, styles.label]}>
+          {'Duration (minutes)'.toUpperCase()}
+        </Text>
         <View style={styles.durationRow}>
-          {DURATIONS.map((d) => (
-            <TouchableOpacity
-              key={d}
-              style={[styles.durationChip, duration === d && styles.durationChipActive]}
-              onPress={() => setDuration(d)}
-            >
-              <Text style={[styles.durationText, duration === d && styles.durationTextActive]}>
-                {d}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {DURATIONS.map((d) => {
+            const isActive = duration === d;
+            return (
+              <TouchableOpacity
+                key={d}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isActive }}
+                style={[
+                  styles.durationChip,
+                  { backgroundColor: isActive ? palette.label : palette.fill },
+                ]}
+                onPress={() => setDuration(d)}
+              >
+                <Text
+                  style={[
+                    text.subheadline,
+                    isActive && { color: palette.background },
+                  ]}
+                >
+                  {d}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
         {loading && (
           <View style={styles.loadingRow}>
-            <ActivityIndicator color={colors.accent} />
-            <Text style={styles.loadingText}>Estimating calories…</Text>
+            <ActivityIndicator color={palette.tint} />
+            <Text style={text.footnote}>Estimating calories…</Text>
           </View>
         )}
         {extracted && !loading && (
-          <View style={styles.caloriesRow}>
-            <Text style={styles.label}>Calories (editable)</Text>
+          <View style={styles.caloriesSection}>
+            <Text style={[text.eyebrow, styles.label]}>
+              {'Calories (editable)'.toUpperCase()}
+            </Text>
             <TextInput
-              style={styles.smallInput}
+              style={inputStyle}
               value={calories}
               onChangeText={setCalories}
               keyboardType="number-pad"
@@ -118,11 +167,18 @@ export default function ExerciseEventScreen() {
           </View>
         )}
         <TouchableOpacity
-          style={styles.saveButton}
+          accessibilityRole="button"
+          style={[
+            styles.saveButton,
+            { backgroundColor: palette.label },
+            saveDisabled && styles.disabled,
+          ]}
           onPress={handleSave}
-          disabled={loading || !description.trim()}
+          disabled={saveDisabled}
         >
-          <Text style={styles.saveButtonText}>Save</Text>
+          <Text style={[text.headline, { color: palette.background }]}>
+            Save
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -132,94 +188,59 @@ export default function ExerciseEventScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    paddingHorizontal: 20,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  backButton: {
-    fontSize: typography.body.fontSize,
-    color: colors.textSecondary,
-  },
-  title: {
-    fontSize: typography.headline.fontSize,
-    fontWeight: typography.headline.fontWeight,
-    color: colors.textPrimary,
+    gap: 10,
+    marginBottom: 24,
   },
   content: {
-    padding: spacing.md,
+    flex: 1,
   },
   label: {
-    fontSize: typography.footnote.fontSize,
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
+    marginBottom: 8,
   },
   input: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.sm,
-    padding: spacing.md,
-    fontSize: typography.body.fontSize,
-    color: colors.textPrimary,
-    marginBottom: spacing.md,
+    borderRadius: CONTROL_RADIUS,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 20,
   },
   durationRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.xs,
-    marginBottom: spacing.md,
+    gap: 8,
+    marginBottom: 20,
   },
   durationChip: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.full,
-  },
-  durationChipActive: {
-    backgroundColor: colors.accent,
-  },
-  durationText: {
-    fontSize: typography.subhead.fontSize,
-    color: colors.textPrimary,
-  },
-  durationTextActive: {
-    color: colors.background,
+    height: CHIP_HEIGHT,
+    borderRadius: CHIP_HEIGHT / 2,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   loadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing.md,
+    gap: 10,
+    marginBottom: 20,
   },
-  loadingText: {
-    fontSize: typography.footnote.fontSize,
-    color: colors.textSecondary,
-  },
-  caloriesRow: {
-    marginBottom: spacing.md,
-  },
-  smallInput: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.sm,
-    padding: spacing.sm,
-    fontSize: typography.body.fontSize,
-    color: colors.textPrimary,
+  caloriesSection: {
+    marginBottom: 4,
   },
   saveButton: {
-    backgroundColor: colors.accent,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
+    height: CTA_HEIGHT,
+    borderRadius: CTA_HEIGHT / 2,
     alignItems: 'center',
-    marginTop: spacing.lg,
+    justifyContent: 'center',
+    marginTop: 16,
   },
-  saveButtonText: {
-    fontSize: typography.headline.fontSize,
-    fontWeight: typography.headline.fontWeight,
-    color: colors.background,
+  disabled: {
+    opacity: 0.45,
+  },
+  pressed: {
+    opacity: 0.7,
   },
 });

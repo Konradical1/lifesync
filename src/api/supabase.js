@@ -34,3 +34,20 @@ export const supabase =
     : null;
 
 export const isSupabaseConfigured = () => !!supabase;
+
+/**
+ * JSON headers for our backend API, including the Supabase access token
+ * when signed in. The Vercel endpoints require this Authorization header.
+ */
+export async function getAuthHeaders() {
+  const headers = { 'Content-Type': 'application/json' };
+  if (supabase) {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      headers.Authorization = `Bearer ${session.access_token}`;
+    }
+  }
+  return headers;
+}

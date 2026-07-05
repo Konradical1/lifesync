@@ -17,7 +17,7 @@ import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useStore } from "../store/useStore";
 import { suggestGoals } from "../utils/goalSuggest";
-import { colors, spacing, typography, borderRadius } from "../theme/constants";
+import { useTheme } from "../store/ThemeContext";
 
 import ProfileHeader from "../components/Profile/ProfileHeader";
 import QuickStatsRow from "../components/Profile/QuickStatsRow";
@@ -26,6 +26,12 @@ import TrendsCard from "../components/Profile/TrendsCard";
 import HealthNotesCard from "../components/Profile/HealthNotesCard";
 import AboutYouSection from "../components/Profile/AboutYouSection";
 import WeightPicker from "../components/Profile/WeightPicker";
+
+const SCREEN_MARGIN = 20;
+const TAB_BAR_CLEARANCE = 140;
+const PILL_HEIGHT = 40;
+const PILL_RADIUS = 20;
+const MODAL_SCRIM = "rgba(0,0,0,0.5)";
 
 const FIELD_CONFIG = {
   name: { label: "Name", placeholder: "Your name", keyboard: "default" },
@@ -93,9 +99,20 @@ function formatDateKey(d) {
   return `${y}-${m}-${day}`;
 }
 
+/** Centered letterspaced-caps section divider (mirrors HomeScreen). */
+function SectionHeader({ title }) {
+  const { text } = useTheme();
+  return (
+    <View style={styles.sectionHeader} accessibilityRole="header">
+      <Text style={text.eyebrow}>{title.toUpperCase()}</Text>
+    </View>
+  );
+}
+
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const { palette, text, shape } = useTheme();
   const { state, dispatch } = useStore();
   const { profile } = state;
 
@@ -202,21 +219,28 @@ export default function ProfileScreen() {
   const config = editingField ? FIELD_CONFIG[editingField] : null;
   const weightLogs = state.weightLogs || [];
 
+  const modalSurface = {
+    backgroundColor: palette.card,
+    borderCurve: shape.borderCurve,
+  };
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: palette.background, paddingTop: insets.top + 12 },
+      ]}
+    >
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          style={styles.backButton}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
         >
-          <Ionicons name="chevron-back" size={24} color={colors.accent} />
+          <Ionicons name="chevron-back" size={28} color={palette.label} />
         </TouchableOpacity>
-        <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerEyebrow}>About you</Text>
-          <Text style={styles.headerTitle}>Profile</Text>
-        </View>
-        <View style={styles.headerSpacer} />
+        <Text style={text.display}>your profile.</Text>
       </View>
 
       <ScrollView
@@ -232,11 +256,13 @@ export default function ProfileScreen() {
           weight={profile.weight}
         />
 
+        <SectionHeader title="Daily goals" />
         <QuickStatsRow
           profile={profile}
           onEditField={(key) => openFieldEditor(key)}
         />
 
+        <SectionHeader title="Body" />
         <WeightCard
           weight={profile.weight}
           weightGoal={profile.weightGoal}
@@ -250,11 +276,13 @@ export default function ProfileScreen() {
           journal={state.journal}
         />
 
+        <SectionHeader title="Health notes" />
         <HealthNotesCard
           medicalConditions={profile.medicalConditions}
           onEdit={() => openFieldEditor("medicalConditions", true)}
         />
 
+        <SectionHeader title="About you" />
         <AboutYouSection
           profile={profile}
           onEditField={(key, large) => openFieldEditor(key, large)}
@@ -262,16 +290,22 @@ export default function ProfileScreen() {
 
         <View style={styles.suggestWrap}>
           <TouchableOpacity
-            style={styles.suggestButton}
+            style={[styles.suggestButton, { backgroundColor: palette.fill }]}
             onPress={handleSuggestGoals}
+            accessibilityRole="button"
+            accessibilityLabel="Suggest goals from profile"
           >
-            <Ionicons name="sparkles-outline" size={16} color={colors.accent} />
-            <Text style={styles.suggestButtonText}>
+            <Ionicons name="sparkles-outline" size={16} color={palette.tint} />
+            <Text style={[text.subheadline, { color: palette.tint }]}>
               Suggest goals from profile
             </Text>
           </TouchableOpacity>
           {suggestError ? (
-            <Text style={styles.suggestError}>{suggestError}</Text>
+            <Text
+              style={[text.footnote, styles.suggestError, { color: palette.red }]}
+            >
+              {suggestError}
+            </Text>
           ) : null}
         </View>
       </ScrollView>
@@ -291,28 +325,42 @@ export default function ProfileScreen() {
             <Pressable
               style={[
                 styles.modalContent,
+                modalSurface,
                 isLargeModal && styles.modalContentLarge,
-                { paddingBottom: Math.max(insets.bottom, spacing.md) },
+                { paddingBottom: Math.max(insets.bottom, 16) },
               ]}
               onPress={(e) => e.stopPropagation()}
             >
-              <View style={styles.modalHandle} />
+              <View
+                style={[styles.modalHandle, { backgroundColor: palette.fill }]}
+              />
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>{config?.label ?? ""}</Text>
-                <TouchableOpacity onPress={closeFieldEditor}>
-                  <Text style={styles.modalDone}>Done</Text>
+                <Text style={text.title3}>{config?.label ?? ""}</Text>
+                <TouchableOpacity
+                  onPress={closeFieldEditor}
+                  accessibilityRole="button"
+                  accessibilityLabel="Done"
+                >
+                  <Text style={[text.subheadline, { color: palette.tint }]}>
+                    Done
+                  </Text>
                 </TouchableOpacity>
               </View>
               <TextInput
                 ref={inputRef}
                 style={[
+                  text.body,
                   styles.modalInput,
+                  {
+                    backgroundColor: palette.fill,
+                    borderRadius: shape.controlRadius,
+                  },
                   isLargeModal && styles.modalInputLarge,
                 ]}
                 value={editValue}
                 onChangeText={setEditValue}
                 placeholder={config?.placeholder}
-                placeholderTextColor={colors.textTertiary}
+                placeholderTextColor={palette.tertiaryLabel}
                 keyboardType={config?.keyboard ?? "default"}
                 multiline={isLargeModal}
                 autoFocus
@@ -340,19 +388,28 @@ export default function ProfileScreen() {
           <View
             style={[
               styles.modalContent,
+              modalSurface,
               styles.pickerModalContent,
-              { paddingBottom: Math.max(insets.bottom, spacing.md) },
+              { paddingBottom: Math.max(insets.bottom, 16) },
             ]}
           >
-            <View style={styles.modalHandle} />
+            <View
+              style={[styles.modalHandle, { backgroundColor: palette.fill }]}
+            />
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
+              <Text style={text.title3}>
                 {weightPickerField === "weightGoal"
                   ? "Weight Goal"
                   : "Update Weight"}
               </Text>
-              <TouchableOpacity onPress={handleWeightPickerDone}>
-                <Text style={styles.modalDone}>Done</Text>
+              <TouchableOpacity
+                onPress={handleWeightPickerDone}
+                accessibilityRole="button"
+                accessibilityLabel="Done"
+              >
+                <Text style={[text.subheadline, { color: palette.tint }]}>
+                  Done
+                </Text>
               </TouchableOpacity>
             </View>
             <WeightPicker value={pickerValue} onValueChange={setPickerValue} />
@@ -374,16 +431,25 @@ export default function ProfileScreen() {
           <Pressable
             style={[
               styles.modalContent,
+              modalSurface,
               styles.historyModalContent,
-              { paddingBottom: Math.max(insets.bottom, spacing.md) },
+              { paddingBottom: Math.max(insets.bottom, 16) },
             ]}
             onPress={(e) => e.stopPropagation()}
           >
-            <View style={styles.modalHandle} />
+            <View
+              style={[styles.modalHandle, { backgroundColor: palette.fill }]}
+            />
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Weight History</Text>
-              <TouchableOpacity onPress={() => setWeightHistoryVisible(false)}>
-                <Text style={styles.modalDone}>Done</Text>
+              <Text style={text.title3}>Weight History</Text>
+              <TouchableOpacity
+                onPress={() => setWeightHistoryVisible(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Done"
+              >
+                <Text style={[text.subheadline, { color: palette.tint }]}>
+                  Done
+                </Text>
               </TouchableOpacity>
             </View>
 
@@ -392,9 +458,9 @@ export default function ProfileScreen() {
                 <Ionicons
                   name="scale-outline"
                   size={36}
-                  color={colors.textTertiary}
+                  color={palette.tertiaryLabel}
                 />
-                <Text style={styles.historyEmptyText}>
+                <Text style={[text.footnote, styles.historyEmptyText]}>
                   No weight logs yet. Tap "Update weight" to add your first
                   entry.
                 </Text>
@@ -409,14 +475,15 @@ export default function ProfileScreen() {
                   <View
                     style={[
                       styles.historyRow,
-                      index < weightLogs.length - 1 && styles.historyRowBorder,
+                      index < weightLogs.length - 1 && {
+                        borderBottomWidth: StyleSheet.hairlineWidth,
+                        borderBottomColor: palette.separator,
+                      },
                     ]}
                   >
                     <View style={styles.historyRowLeft}>
-                      <Text style={styles.historyWeight}>
-                        {item.weight} lbs
-                      </Text>
-                      <Text style={styles.historyDate}>
+                      <Text style={text.headline}>{item.weight} lbs</Text>
+                      <Text style={[text.footnote, styles.historyDate]}>
                         {formatLogDate(item.createdAt)}
                       </Text>
                     </View>
@@ -427,26 +494,16 @@ export default function ProfileScreen() {
                         if (isNaN(prev) || isNaN(curr)) return null;
                         const diff = prev - curr;
                         if (diff === 0) return null;
+                        const diffColor =
+                          diff > 0 ? palette.red : palette.green;
                         return (
                           <View style={styles.historyDiff}>
                             <Ionicons
                               name={diff > 0 ? "arrow-up" : "arrow-down"}
                               size={14}
-                              color={
-                                diff > 0 ? colors.eventMeds : colors.eventFood
-                              }
+                              color={diffColor}
                             />
-                            <Text
-                              style={[
-                                styles.historyDiffText,
-                                {
-                                  color:
-                                    diff > 0
-                                      ? colors.eventMeds
-                                      : colors.eventFood,
-                                },
-                              ]}
-                            >
+                            <Text style={[text.caption, { color: diffColor }]}>
                               {Math.abs(diff)} lbs
                             </Text>
                           </View>
@@ -466,83 +523,52 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
   },
   header: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.lg,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
     alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.055)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-  },
-  headerTitleWrap: {
-    flex: 1,
-    alignItems: "center",
-  },
-  headerEyebrow: {
-    ...typography.caption1,
-    color: colors.textTertiary,
-    textTransform: "uppercase",
-  },
-  headerTitle: {
-    fontSize: typography.title1.fontSize,
-    fontFamily: typography.fontFamilyBold,
-    color: colors.textPrimary,
-  },
-  headerSpacer: {
-    width: 40,
+    gap: 8,
+    paddingHorizontal: SCREEN_MARGIN,
+    paddingBottom: 8,
   },
   scroll: {
     flex: 1,
   },
   content: {
-    paddingBottom: 140,
+    paddingBottom: TAB_BAR_CLEARANCE,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    marginHorizontal: SCREEN_MARGIN,
+    marginTop: 30,
+    marginBottom: 12,
   },
 
   /* Suggest Goals */
   suggestWrap: {
-    paddingHorizontal: spacing.md,
-    marginBottom: spacing.lg,
+    marginHorizontal: SCREEN_MARGIN,
+    marginTop: 30,
   },
   suggestButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: spacing.xs,
-    backgroundColor: "rgba(88,166,255,0.1)",
-    borderRadius: 20,
-    paddingVertical: spacing.sm + 2,
-    borderWidth: 1,
-    borderColor: colors.accent + "40",
-  },
-  suggestButtonText: {
-    fontSize: typography.callout.fontSize,
-    color: colors.accent,
-    fontWeight: "600",
-    fontFamily: typography.fontFamilySemiBold,
+    gap: 6,
+    height: PILL_HEIGHT,
+    borderRadius: PILL_RADIUS,
   },
   suggestError: {
-    fontSize: typography.footnote.fontSize,
-    color: colors.eventMeds,
-    marginTop: spacing.xs,
+    marginTop: 8,
     textAlign: "center",
   },
 
   /* Shared Modal */
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    backgroundColor: MODAL_SCRIM,
     justifyContent: "flex-end",
   },
   modalOverlayDismiss: {
@@ -552,14 +578,11 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: "#151A21",
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
+    paddingHorizontal: SCREEN_MARGIN,
+    paddingTop: 12,
     minHeight: 160,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
   },
   modalContentLarge: {
     minHeight: 300,
@@ -568,38 +591,18 @@ const styles = StyleSheet.create({
     width: 42,
     height: 5,
     borderRadius: 3,
-    backgroundColor: colors.border,
     alignSelf: "center",
-    marginBottom: spacing.sm,
+    marginBottom: 12,
   },
   modalHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: spacing.sm,
-  },
-  modalTitle: {
-    fontSize: typography.headline.fontSize,
-    fontWeight: typography.headline.fontWeight,
-    fontFamily: typography.fontFamilyBold,
-    color: colors.textPrimary,
-  },
-  modalDone: {
-    fontSize: typography.body.fontSize,
-    color: colors.accent,
-    fontWeight: "600",
-    fontFamily: typography.fontFamilySemiBold,
+    marginBottom: 12,
   },
   modalInput: {
-    backgroundColor: colors.surfaceElevated,
-    borderRadius: borderRadius.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    fontSize: typography.body.fontSize,
-    fontFamily: typography.fontFamilyMedium,
-    color: colors.textPrimary,
-    borderWidth: 1,
-    borderColor: colors.border,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
   modalInputLarge: {
     minHeight: 180,
@@ -624,26 +627,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.xs,
-  },
-  historyRowBorder: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    paddingVertical: 14,
+    paddingHorizontal: 4,
   },
   historyRowLeft: {
     flex: 1,
   },
-  historyWeight: {
-    fontSize: typography.body.fontSize,
-    fontWeight: "600",
-    fontFamily: typography.fontFamilySemiBold,
-    color: colors.textPrimary,
-  },
   historyDate: {
-    fontSize: typography.caption1.fontSize,
-    fontFamily: typography.fontFamilyMedium,
-    color: colors.textTertiary,
     marginTop: 2,
   },
   historyDiff: {
@@ -651,22 +641,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 3,
   },
-  historyDiffText: {
-    fontSize: typography.footnote.fontSize,
-    fontWeight: "600",
-    fontFamily: typography.fontFamilySemiBold,
-  },
   historyEmpty: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: spacing.xl,
-    gap: spacing.sm,
+    paddingVertical: 32,
+    gap: 12,
   },
   historyEmptyText: {
-    fontSize: typography.subhead.fontSize,
-    fontFamily: typography.fontFamilyMedium,
-    color: colors.textTertiary,
     textAlign: "center",
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: 24,
   },
 });

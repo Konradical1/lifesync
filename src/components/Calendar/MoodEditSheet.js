@@ -17,10 +17,10 @@ import { deleteMoodEntryFromSupabase } from '../../api/supabaseSync';
 import { isSupabaseConfigured } from '../../api/supabase';
 import { MOOD_OPTIONS } from '../../store/mockData';
 import { formatTime12h } from '../../utils/time';
-import { colors, spacing, typography, borderRadius } from '../../theme/constants';
+import { useTheme } from '../../store/ThemeContext';
 
-function getMoodColor(id) {
-  return MOOD_OPTIONS.find((m) => m.id === id)?.color ?? colors.textSecondary;
+function getMoodColor(id, fallback) {
+  return MOOD_OPTIONS.find((m) => m.id === id)?.color ?? fallback;
 }
 
 function parseTimeToDate(time24) {
@@ -36,6 +36,7 @@ function formatTime24h(d) {
 
 export default function MoodEditSheet({ mood, onClose }) {
   const { dispatch } = useStore();
+  const { palette, text, shape } = useTheme();
   const [visible, setVisible] = useState(false);
   const [startTime, setStartTime] = useState(new Date());
   const [endTime, setEndTime] = useState(new Date());
@@ -85,18 +86,32 @@ export default function MoodEditSheet({ mood, onClose }) {
 
   if (!mood) return null;
 
+  const inputSurface = {
+    backgroundColor: palette.fill,
+    borderRadius: shape.controlRadius,
+  };
+
   return (
     <Modal visible={visible} transparent animationType="fade">
       <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
-          <Text style={styles.title}>Edit mood</Text>
+        <Pressable
+          style={[
+            styles.sheet,
+            {
+              backgroundColor: palette.cardElevated,
+              borderCurve: shape.borderCurve,
+            },
+          ]}
+          onPress={(e) => e.stopPropagation()}
+        >
+          <Text style={[text.title3, styles.title]}>Edit mood</Text>
 
-          <Text style={styles.label}>Start time</Text>
+          <Text style={[text.footnote, styles.label]}>Start time</Text>
           <TouchableOpacity
-            style={styles.input}
+            style={[styles.input, inputSurface]}
             onPress={() => toggleTimePicker('start')}
           >
-            <Text style={styles.inputText}>{formatTime12h(formatTime24h(startTime))}</Text>
+            <Text style={text.body}>{formatTime12h(formatTime24h(startTime))}</Text>
           </TouchableOpacity>
           {showTimePicker === 'start' && (
             <DateTimePicker
@@ -107,12 +122,12 @@ export default function MoodEditSheet({ mood, onClose }) {
             />
           )}
 
-          <Text style={styles.label}>End time</Text>
+          <Text style={[text.footnote, styles.label]}>End time</Text>
           <TouchableOpacity
-            style={styles.input}
+            style={[styles.input, inputSurface]}
             onPress={() => toggleTimePicker('end')}
           >
-            <Text style={styles.inputText}>{formatTime12h(formatTime24h(endTime))}</Text>
+            <Text style={text.body}>{formatTime12h(formatTime24h(endTime))}</Text>
           </TouchableOpacity>
           {showTimePicker === 'end' && (
             <DateTimePicker
@@ -123,7 +138,7 @@ export default function MoodEditSheet({ mood, onClose }) {
             />
           )}
 
-          <Text style={styles.sectionLabel}>Mood</Text>
+          <Text style={[text.footnote, styles.label]}>Mood</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
             {MOOD_OPTIONS.map((m) => (
               <TouchableOpacity
@@ -134,16 +149,22 @@ export default function MoodEditSheet({ mood, onClose }) {
                 }}
                 style={[
                   styles.chip,
-                  { borderColor: m.color },
-                  emotion === m.id && { backgroundColor: m.color + '30', borderWidth: 2 },
+                  {
+                    backgroundColor:
+                      emotion === m.id ? m.color + '30' : palette.fill,
+                  },
                 ]}
               >
-                <Text style={[styles.chipLabel, { color: m.color }]}>{m.label}</Text>
+                <Text style={[text.caption, { color: m.color }]}>
+                  {m.label}
+                </Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
 
-          <Text style={styles.sectionLabel}>Intensity: {Math.round(intensity)}</Text>
+          <Text style={[text.footnote, styles.label]}>
+            Intensity: {Math.round(intensity)}
+          </Text>
           <Slider
             style={styles.slider}
             minimumValue={1}
@@ -151,20 +172,32 @@ export default function MoodEditSheet({ mood, onClose }) {
             step={1}
             value={intensity}
             onValueChange={setIntensity}
-            minimumTrackTintColor={getMoodColor(emotion)}
-            maximumTrackTintColor={colors.border}
-            thumbTintColor={getMoodColor(emotion)}
+            minimumTrackTintColor={getMoodColor(emotion, palette.tint)}
+            maximumTrackTintColor={palette.fill}
+            thumbTintColor={getMoodColor(emotion, palette.tint)}
           />
 
           <View style={styles.buttons}>
             <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
-              <Text style={styles.deleteText}>Delete</Text>
+              <Text style={[text.subheadline, { color: palette.red }]}>
+                Delete
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <Text style={styles.closeText}>Cancel</Text>
+            <TouchableOpacity
+              style={[styles.closeButton, { backgroundColor: palette.fill }]}
+              onPress={onClose}
+            >
+              <Text style={[text.subheadline, { color: palette.label }]}>
+                Cancel
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-              <Text style={styles.saveText}>Save</Text>
+            <TouchableOpacity
+              style={[styles.saveButton, { backgroundColor: palette.label }]}
+              onPress={handleSave}
+            >
+              <Text style={[text.subheadline, { color: palette.background }]}>
+                Save
+              </Text>
             </TouchableOpacity>
           </View>
         </Pressable>
@@ -176,99 +209,60 @@ export default function MoodEditSheet({ mood, onClose }) {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: spacing.lg,
+    padding: 24,
   },
   sheet: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
+    borderRadius: 20,
+    padding: 24,
     width: '100%',
     maxWidth: 360,
   },
   title: {
-    fontSize: typography.title3.fontSize,
-    fontWeight: '600',
-    color: colors.textPrimary,
-    marginBottom: spacing.lg,
+    marginBottom: 24,
   },
   label: {
-    fontSize: typography.footnote.fontSize,
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
-    marginTop: spacing.sm,
+    marginBottom: 8,
+    marginTop: 12,
   },
   input: {
-    backgroundColor: colors.background,
-    borderRadius: borderRadius.sm,
-    padding: spacing.md,
-    fontSize: typography.body.fontSize,
-    color: colors.textPrimary,
-  },
-  inputText: {
-    fontSize: typography.body.fontSize,
-    color: colors.textPrimary,
-  },
-  sectionLabel: {
-    fontSize: typography.footnote.fontSize,
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
-    marginTop: spacing.sm,
+    padding: 16,
   },
   chipRow: {
-    marginBottom: spacing.lg,
+    marginBottom: 24,
+    marginTop: 4,
   },
   chip: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    marginRight: spacing.xs,
-  },
-  chipLabel: {
-    fontSize: typography.footnote.fontSize,
-    fontWeight: '500',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 14,
+    marginRight: 8,
   },
   slider: {
     width: '100%',
     height: 40,
-    marginBottom: spacing.lg,
+    marginBottom: 24,
   },
   buttons: {
     flexDirection: 'row',
-    gap: spacing.sm,
+    gap: 12,
     justifyContent: 'flex-end',
+    alignItems: 'center',
   },
   deleteButton: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-  },
-  deleteText: {
-    fontSize: typography.subhead.fontSize,
-    color: colors.textTertiary,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
   },
   closeButton: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: borderRadius.md,
-  },
-  closeText: {
-    fontSize: typography.subhead.fontSize,
-    fontWeight: '600',
-    color: colors.textSecondary,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 20,
   },
   saveButton: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    backgroundColor: colors.accent,
-    borderRadius: borderRadius.md,
-  },
-  saveText: {
-    fontSize: typography.subhead.fontSize,
-    fontWeight: '600',
-    color: colors.background,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 20,
   },
 });

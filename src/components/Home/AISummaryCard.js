@@ -8,7 +8,7 @@ import React, {
 import {
   View,
   Text,
-  TouchableOpacity,
+  Pressable,
   StyleSheet,
   LayoutAnimation,
   Platform,
@@ -34,17 +34,18 @@ import {
   useWaterEntries,
 } from "../../store/useStore";
 import { getDaySummaryShort } from "../../api/ai";
-import {
-  colors,
-  spacing,
-  typography,
-  borderRadius,
-} from "../../theme/constants";
+import Card from "../ui/Card";
+import { useTheme } from "../../store/ThemeContext";
+import { fonts } from "../../theme/ios";
 import { SkeletonLines } from "./SkeletonText";
 
 const BLUR_IN_OFFSET = 10;
 const BLUR_IN_DURATION = 380;
 const BLUR_IN_STAGGER_MS = 42;
+const BODY_LINE_HEIGHT = 24;
+const COLLAPSED_LINES = 3;
+const EMPTY_SUMMARY_TEXT =
+  "Nothing logged yet today. Add a meal, water, or your mood to get a summary.";
 
 function formatDateKey(d) {
   const y = d.getFullYear();
@@ -108,12 +109,36 @@ function doFetchSummary({
   });
 }
 
+function CardHeader({ loading, onRefresh }) {
+  const { palette, text } = useTheme();
+  return (
+    <View style={styles.headerRow}>
+      <Text style={text.eyebrow}>DAILY SUMMARY</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Refresh summary"
+        onPress={onRefresh}
+        disabled={loading}
+        hitSlop={12}
+        style={({ pressed }) => pressed && styles.pressed}
+      >
+        {loading ? (
+          <ActivityIndicator size="small" color={palette.secondaryLabel} />
+        ) : (
+          <Ionicons name="refresh" size={18} color={palette.secondaryLabel} />
+        )}
+      </Pressable>
+    </View>
+  );
+}
+
 export default function AISummaryCard({
   refreshing = false,
   onFetchDone,
   onLoadingChange,
   animTrigger = 0,
 }) {
+  const { palette, text } = useTheme();
   const today = formatDateKey(new Date());
   const summaryToday = useSummary(today);
   const latestSummary = useLatestSummary(today);
@@ -221,28 +246,22 @@ export default function AISummaryCard({
     onFetchDone,
   ]);
 
-  const handlePress = () => {
+  const handleToggleExpanded = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setExpanded((e) => !e);
   };
 
-  const fullText = summary ?? "No data yet — start logging your day";
+  const fullText = summary ?? EMPTY_SUMMARY_TEXT;
   const highlight =
     highlightedWord && fullText.includes(highlightedWord)
       ? highlightedWord
-      : (summary &&
-          (summary.includes("balanced")
-            ? "balanced"
-            : summary.includes("track")
-              ? "on track"
-              : "")) ||
-        "";
+      : "";
   const segments = useMemo(
     () => getSegments(fullText, highlight),
     [fullText, highlight],
   );
 
-  // Blur-in-by-word: triggered by animTrigger (same counter as mood/calories)
+  // Staggered word reveal, triggered by animTrigger (same counter as mood/calories)
   useEffect(() => {
     if (animTrigger === 0 || animTrigger === prevAnimTriggerRef.current) return;
     prevAnimTriggerRef.current = animTrigger;
@@ -275,213 +294,106 @@ export default function AISummaryCard({
     });
   }, [animTrigger, summary, segments]);
 
-  if (loading && !summary) {
+  const showSkeleton = (loading && !summary) || (refreshing && summary);
+  if (showSkeleton) {
     return (
-      <View style={styles.wrap}>
-        <View style={styles.card}>
-          <Text style={styles.label}>
-            <Text style={styles.labelAccent}>AI</Text> SUMMARY
-          </Text>
-          <SkeletonLines />
-        </View>
-      </View>
+      <Card style={styles.card}>
+        <CardHeader loading onRefresh={performRefresh} />
+        <SkeletonLines />
+      </Card>
     );
   }
 
-  const showPlaceholder = refreshing && summary;
-  const showBlurIn =
-    !showPlaceholder &&
-    segmentAnims.length === segments.length &&
-    segmentAnims.length > 0;
-
-  if (showPlaceholder) {
-    return (
-      <View style={styles.wrap}>
-        <View style={styles.card}>
-          <Text style={styles.label}>
-            <Text style={styles.labelAccent}>AI</Text> SUMMARY
-          </Text>
-          <SkeletonLines />
-          <View style={styles.cardFooter}>
-            <View style={styles.regenerateButton}>
-              <Ionicons
-                name="refresh-outline"
-                size={20}
-                color={colors.textTertiary}
-              />
-            </View>
-            <Text style={styles.readMore}>Tap to read more</Text>
-          </View>
-        </View>
-      </View>
-    );
-  }
+  const showReveal =
+    segmentAnims.length === segments.length && segmentAnims.length > 0;
 
   return (
-    <View style={styles.wrap}>
-      <TouchableOpacity
-        activeOpacity={0.9}
-        onPress={handlePress}
-        style={styles.touchable}
-      >
-        <View style={[styles.card, expanded && styles.cardExpanded]}>
-          <Text style={styles.label}>
-            <Text style={styles.labelAccent}>AI</Text> SUMMARY
-          </Text>
-          <View style={styles.summaryContainer}>
-            {showBlurIn ? (
-              <View
+    <Card style={styles.card}>
+        <CardHeader loading={loading} onRefresh={performRefresh} />
+        {showReveal ? (
+          <View
+            style={[styles.summaryRow, !expanded && styles.summaryCollapsed]}
+          >
+            {segments.map((seg, i) => (
+              <Animated.Text
+                key={`${i}-${seg.text}`}
                 style={[
-                  styles.summaryRow,
-                  !expanded && styles.summaryRowCollapsed,
+                  text.body,
+                  styles.body,
+                  seg.isHighlight && {
+                    color: palette.tint,
+                    fontFamily: fonts.bodyMedium,
+                  },
+                  {
+                    opacity: segmentAnims[i].opacity,
+                    transform: [{ translateY: segmentAnims[i].translateY }],
+                  },
                 ]}
               >
-                {segments.map((seg, i) => (
-                  <Animated.Text
-                    key={`${i}-${seg.text}`}
-                    style={[
-                      styles.text,
-                      seg.isHighlight && styles.highlight,
-                      {
-                        opacity: segmentAnims[i].opacity,
-                        transform: [{ translateY: segmentAnims[i].translateY }],
-                      },
-                    ]}
-                  >
-                    {seg.text}
-                    {i < segments.length - 1 ? " " : ""}
-                  </Animated.Text>
-                ))}
-              </View>
-            ) : (
-              <Text
-                style={styles.text}
-                numberOfLines={expanded ? undefined : 3}
-                ellipsizeMode="tail"
-              >
-                {fullText}
-              </Text>
-            )}
-            {!expanded && showBlurIn && (
-              <Text style={styles.ellipsisInSummary}>…</Text>
-            )}
+                {seg.text}
+                {i < segments.length - 1 ? " " : ""}
+              </Animated.Text>
+            ))}
           </View>
-          {loading ? (
-            <View style={styles.inlineLoader}>
-              <ActivityIndicator size="small" color={colors.accent} />
-            </View>
-          ) : null}
-          <View style={styles.cardFooter}>
-            <TouchableOpacity
-              style={styles.regenerateButton}
-              onPress={(e) => {
-                e?.stopPropagation?.();
-                performRefresh();
-              }}
-              disabled={loading}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            >
-              {loading ? (
-                <ActivityIndicator size="small" color={colors.accent} />
-              ) : (
-                <Ionicons
-                  name="refresh-outline"
-                  size={20}
-                  color={colors.accent}
-                />
-              )}
-            </TouchableOpacity>
-            {!expanded ? (
-              <Text style={styles.readMore}>Tap to read more</Text>
-            ) : (
-              <Text style={styles.readMore}>Tap to show less</Text>
-            )}
-          </View>
-        </View>
-      </TouchableOpacity>
-    </View>
+        ) : (
+          <Text
+            style={[text.body, styles.body]}
+            numberOfLines={expanded ? undefined : COLLAPSED_LINES}
+            ellipsizeMode="tail"
+          >
+            {fullText}
+          </Text>
+        )}
+      {summary ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={
+            expanded ? "Show less of the summary" : "Show more of the summary"
+          }
+          onPress={handleToggleExpanded}
+          hitSlop={8}
+          style={({ pressed }) => [
+            styles.toggleButton,
+            pressed && styles.pressed,
+          ]}
+        >
+          <Text style={[text.footnote, { color: palette.tint }]}>
+            {expanded ? "Show Less" : "Show More"}
+          </Text>
+        </Pressable>
+      ) : null}
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: {
-    marginHorizontal: spacing.xs,
-    marginBottom: spacing.md,
-  },
-  touchable: {},
   card: {
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    paddingTop: spacing.xs,
+    marginHorizontal: 20,
+    marginTop: 24,
   },
-  cardExpanded: {},
-  label: {
-    ...typography.footnote,
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
-    textTransform: "uppercase",
-  },
-  labelAccent: {
-    color: colors.accent,
-    fontFamily: typography.fontFamilySemiBold,
-  },
-  loadingCard: {
+  headerRow: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    minHeight: 56,
+    justifyContent: "space-between",
+    marginBottom: 8,
   },
-  loadingText: {
-    fontSize: typography.footnote.fontSize,
-    color: colors.textSecondary,
-    marginTop: spacing.sm,
-  },
-  summaryContainer: {
-    position: "relative",
+  body: {
+    lineHeight: BODY_LINE_HEIGHT,
   },
   summaryRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     alignItems: "flex-start",
   },
-  summaryRowCollapsed: {
-    maxHeight: 26 * 3,
+  summaryCollapsed: {
+    maxHeight: BODY_LINE_HEIGHT * COLLAPSED_LINES,
     overflow: "hidden",
   },
-  ellipsisInSummary: {
-    position: "absolute",
-    bottom: 0,
-    right: 0,
-    fontSize: typography.body.fontSize,
-    fontFamily: typography.fontFamilyMediumItalic,
-    color: colors.textPrimary,
-    lineHeight: 26,
-  },
-  text: {
-    fontSize: typography.body.fontSize,
-    fontFamily: typography.fontFamilyMediumItalic,
-    color: colors.textPrimary,
-    lineHeight: 26,
-  },
-  highlight: {
-    color: colors.accent,
-    fontFamily: typography.fontFamilySemiBoldItalic,
-  },
-  cardFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: spacing.xs,
-  },
-  regenerateButton: {
-    padding: spacing.xs,
-    marginLeft: -spacing.xs,
-  },
-  readMore: {
-    ...typography.footnote,
-    color: colors.textSecondary,
-  },
-  inlineLoader: {
-    marginTop: spacing.sm,
+  toggleButton: {
     alignSelf: "flex-start",
+    marginTop: 10,
+  },
+  pressed: {
+    opacity: 0.7,
   },
 });

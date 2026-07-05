@@ -1,5 +1,6 @@
 /** DEPLOY: After editing this file (or any under api/), push to git so Vercel updates the API. */
 import type { VercelRequest, VercelResponse } from "vercel";
+import { requireUser } from "../_lib/auth";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MODEL = "openai/gpt-4.1-mini";
@@ -11,6 +12,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
+
+  const userId = await requireUser(req, res);
+  if (!userId) return;
 
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {

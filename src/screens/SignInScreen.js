@@ -3,28 +3,28 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
+  Pressable,
   StyleSheet,
-  Image,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../store/AuthContext";
-import {
-  colors,
-  spacing,
-  typography,
-  fontFamilyMedium,
-  fontFamilySemiBold,
-  fontFamilyBold,
-  borderRadius,
-} from "../theme/constants";
+import { useTheme } from "../store/ThemeContext";
+import { fonts } from "../theme/ios";
+import SocialAuthButtons from "../components/Auth/SocialAuthButtons";
+
+const SCREEN_MARGIN = 24;
+const HERO_TOP_OFFSET = 60;
+const INPUT_HEIGHT = 48;
+const INPUT_RADIUS = 14;
+const CTA_HEIGHT = 48;
 
 export default function SignInScreen({ navigation }) {
   const insets = useSafeAreaInsets();
-  const { signIn, skipAuthForLocalPreview } = useAuth();
+  const { palette, text, shape } = useTheme();
+  const { signIn } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -46,51 +46,50 @@ export default function SignInScreen({ navigation }) {
     }
   }
 
-  async function handleSkipAuth() {
-    setError("");
-    setLoading(true);
-    try {
-      await skipAuthForLocalPreview();
-    } catch (e) {
-      setError(e.message || "Could not enter preview mode.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: palette.background }]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View
         style={[
           styles.inner,
-          { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 24 },
+          {
+            paddingTop: insets.top + HERO_TOP_OFFSET,
+            paddingBottom: insets.bottom + 24,
+          },
         ]}
       >
-        <Image
-          source={require("../../assets/JournalXWithText.png")}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-
-        <Text style={styles.heading}>Welcome back</Text>
+        <Text style={text.display} accessibilityRole="header">
+          welcome back.
+        </Text>
+        <Text style={[text.footnote, styles.subtitle]}>
+          Sign in to pick up your journal where you left off.
+        </Text>
 
         {!!error && (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
+          <Text
+            style={[text.footnote, styles.error, { color: palette.red }]}
+            accessibilityRole="alert"
+          >
+            {error}
+          </Text>
         )}
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Email</Text>
+          <Text style={[text.eyebrow, styles.label]}>
+            {"Email".toUpperCase()}
+          </Text>
           <TextInput
-            style={styles.input}
+            style={[
+              text.body,
+              styles.input,
+              { backgroundColor: palette.fill, borderCurve: shape.borderCurve },
+            ]}
             value={email}
             onChangeText={setEmail}
             placeholder="you@example.com"
-            placeholderTextColor={colors.textTertiary}
+            placeholderTextColor={palette.tertiaryLabel}
             autoCapitalize="none"
             keyboardType="email-address"
             textContentType="emailAddress"
@@ -99,48 +98,71 @@ export default function SignInScreen({ navigation }) {
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Password</Text>
+          <Text style={[text.eyebrow, styles.label]}>
+            {"Password".toUpperCase()}
+          </Text>
           <TextInput
-            style={styles.input}
+            style={[
+              text.body,
+              styles.input,
+              { backgroundColor: palette.fill, borderCurve: shape.borderCurve },
+            ]}
             value={password}
             onChangeText={setPassword}
             placeholder="Your password"
-            placeholderTextColor={colors.textTertiary}
+            placeholderTextColor={palette.tertiaryLabel}
             secureTextEntry
             textContentType="password"
             autoComplete="password"
           />
         </View>
 
-        <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Sign in"
           onPress={handleSignIn}
           disabled={loading}
-          activeOpacity={0.8}
+          style={[
+            styles.button,
+            { backgroundColor: palette.label },
+            loading && styles.buttonDisabled,
+          ]}
         >
           {loading ? (
-            <ActivityIndicator color={colors.background} />
+            <ActivityIndicator color={palette.background} />
           ) : (
-            <Text style={styles.buttonText}>Sign In</Text>
+            <Text style={[text.subheadline, { color: palette.background }]}>
+              Sign In
+            </Text>
           )}
-        </TouchableOpacity>
+        </Pressable>
 
-        <TouchableOpacity
-          style={[styles.skipButton, loading && styles.buttonDisabled]}
-          onPress={handleSkipAuth}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Forgot password"
+          onPress={() => navigation.navigate("ForgotPassword")}
           disabled={loading}
-          activeOpacity={0.8}
+          style={[styles.linkButton, loading && styles.buttonDisabled]}
         >
-          <Text style={styles.skipButtonText}>Skip for local preview</Text>
-        </TouchableOpacity>
+          <Text style={[text.subheadline, { color: palette.tint }]}>
+            Forgot password?
+          </Text>
+        </Pressable>
+
+        <SocialAuthButtons onError={setError} disabled={loading} />
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Don't have an account? </Text>
-          <TouchableOpacity
+          <Text style={text.footnote}>Don't have an account? </Text>
+          <Pressable
+            accessibilityRole="button"
             onPress={() => navigation.navigate("CreateAccount")}
           >
-            <Text style={styles.footerLink}>Create one</Text>
-          </TouchableOpacity>
+            <Text
+              style={[text.footnote, styles.footerLink, { color: palette.tint }]}
+            >
+              Create one
+            </Text>
+          </Pressable>
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -150,101 +172,51 @@ export default function SignInScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
   },
   inner: {
     flex: 1,
-    paddingHorizontal: spacing.lg,
-    justifyContent: "center",
+    paddingHorizontal: SCREEN_MARGIN,
   },
-  logo: {
-    width: 200,
-    height: 48,
-    alignSelf: "center",
-    marginBottom: spacing.xl,
+  subtitle: {
+    marginTop: 8,
+    marginBottom: 36,
   },
-  heading: {
-    fontSize: typography.title2.fontSize,
-    fontWeight: typography.title2.fontWeight,
-    fontFamily: fontFamilyBold,
-    color: colors.textPrimary,
-    textAlign: "center",
-    marginBottom: spacing.lg,
-  },
-  errorBox: {
-    backgroundColor: "rgba(239,68,68,0.15)",
-    borderRadius: borderRadius.sm,
-    padding: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  errorText: {
-    color: "#EF4444",
-    fontSize: typography.footnote.fontSize,
-    fontFamily: fontFamilyMedium,
-    textAlign: "center",
+  error: {
+    marginBottom: 16,
   },
   inputGroup: {
-    marginBottom: spacing.md,
+    marginBottom: 20,
   },
   label: {
-    fontSize: typography.footnote.fontSize,
-    fontFamily: fontFamilySemiBold,
-    color: colors.textSecondary,
-    marginBottom: spacing.xxs,
+    marginBottom: 8,
   },
   input: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: borderRadius.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 14,
-    fontSize: typography.body.fontSize,
-    fontFamily: fontFamilyMedium,
-    color: colors.textPrimary,
+    height: INPUT_HEIGHT,
+    borderRadius: INPUT_RADIUS,
+    paddingHorizontal: 16,
   },
   button: {
-    backgroundColor: colors.accent,
-    borderRadius: borderRadius.sm,
-    paddingVertical: 16,
+    height: CTA_HEIGHT,
+    borderRadius: CTA_HEIGHT / 2,
     alignItems: "center",
-    marginTop: spacing.sm,
+    justifyContent: "center",
+    marginTop: 12,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
-  buttonText: {
-    fontSize: typography.body.fontSize,
-    fontFamily: fontFamilySemiBold,
-    color: colors.background,
-  },
-  skipButton: {
-    borderRadius: borderRadius.sm,
-    paddingVertical: 16,
+  linkButton: {
     alignItems: "center",
-    marginTop: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  skipButtonText: {
-    fontSize: typography.body.fontSize,
-    fontFamily: fontFamilySemiBold,
-    color: colors.accent,
+    paddingVertical: 16,
+    marginTop: 4,
   },
   footer: {
     flexDirection: "row",
+    alignItems: "baseline",
     justifyContent: "center",
-    marginTop: spacing.lg,
-  },
-  footerText: {
-    fontSize: typography.footnote.fontSize,
-    fontFamily: fontFamilyMedium,
-    color: colors.textSecondary,
+    marginTop: 16,
   },
   footerLink: {
-    fontSize: typography.footnote.fontSize,
-    fontFamily: fontFamilySemiBold,
-    color: colors.accent,
+    fontFamily: fonts.bodyMedium,
   },
 });

@@ -1,14 +1,17 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
-import { colors, spacing, typography, borderRadius } from '../../theme/constants';
+import Card from '../ui/Card';
+import { useTheme } from '../../store/ThemeContext';
+import { fonts } from '../../theme/ios';
 import { SkeletonLines } from '../Home/SkeletonText';
 
 const REVEAL_OFFSET = 10;
 const REVEAL_DURATION = 380;
 const REVEAL_STAGGER_MS = 42;
 const CARD_STAGGER_MS = 50;
+const SCREEN_MARGIN = 20;
+const CARD_GAP = 12;
 
 const ICON_MAP = {
   sleep: 'moon-outline',
@@ -21,6 +24,21 @@ const ICON_MAP = {
   summary: 'sparkles-outline',
   progress: 'trending-up-outline',
 };
+
+/** Per-topic accent so each card's corner icon picks up a palette color. */
+function getIconAccent(palette) {
+  return {
+    sleep: palette.indigo,
+    food: palette.green,
+    nutrition: palette.green,
+    exercise: palette.orange,
+    meds: palette.red,
+    journal: palette.purple,
+    mood: palette.pink,
+    summary: palette.tint,
+    progress: palette.cyan,
+  };
+}
 
 /** Parse a line into segments: normal, bold, italic, blue, icon. Order: *** then ** then * then [icon:name]. */
 function parseInlineSegments(text) {
@@ -79,14 +97,14 @@ function stripIconFromHeader(str) {
 }
 
 /** One Text with nested Text for bold/italic/blue so they stay inline (no extra line breaks). */
-function renderTextRun(segments, keyPrefix, baseStyle) {
+function renderTextRun(segments, keyPrefix, baseStyle, ts) {
   return (
     <Text key={keyPrefix} style={baseStyle}>
       {segments.map((s, i) => {
-        if (s.type === 'normal') return <Text key={`${keyPrefix}-${i}`} style={styles.body}>{s.text}</Text>;
-        if (s.type === 'bold') return <Text key={`${keyPrefix}-${i}`} style={styles.bold}>{s.text}</Text>;
-        if (s.type === 'italic') return <Text key={`${keyPrefix}-${i}`} style={styles.italic}>{s.text}</Text>;
-        if (s.type === 'blue') return <Text key={`${keyPrefix}-${i}`} style={styles.highlight}>{s.text}</Text>;
+        if (s.type === 'normal') return <Text key={`${keyPrefix}-${i}`} style={ts.body}>{s.text}</Text>;
+        if (s.type === 'bold') return <Text key={`${keyPrefix}-${i}`} style={ts.bold}>{s.text}</Text>;
+        if (s.type === 'italic') return <Text key={`${keyPrefix}-${i}`} style={ts.italic}>{s.text}</Text>;
+        if (s.type === 'blue') return <Text key={`${keyPrefix}-${i}`} style={ts.highlight}>{s.text}</Text>;
         return null;
       })}
     </Text>
@@ -94,14 +112,14 @@ function renderTextRun(segments, keyPrefix, baseStyle) {
 }
 
 /** Render segments inline: icons in a row, text runs as single Text so bold/italic/blue don't create new lines. */
-function renderInlineSegments(segments, keyPrefix) {
+function renderInlineSegments(segments, keyPrefix, ts, palette) {
   const hasIcon = segments.some((s) => s.type === 'icon');
   if (!hasIcon) {
-    return renderTextRun(segments, keyPrefix, styles.inlineParagraph);
+    return renderTextRun(segments, keyPrefix, ts.inlineParagraph, ts);
   }
   const runs = [];
   let currentTextRun = [];
-  segments.forEach((s, i) => {
+  segments.forEach((s) => {
     if (s.type === 'icon') {
       if (currentTextRun.length) {
         runs.push({ type: 'text', segments: currentTextRun });
@@ -122,11 +140,11 @@ function renderInlineSegments(segments, keyPrefix) {
             key={`${keyPrefix}-icon-${i}`}
             name={ICON_MAP[r.name] || 'ellipse-outline'}
             size={16}
-            color={colors.textSecondary}
+            color={palette.secondaryLabel}
             style={styles.inlineIcon}
           />
         ) : (
-          renderTextRun(r.segments, `${keyPrefix}-run-${i}`, styles.body)
+          renderTextRun(r.segments, `${keyPrefix}-run-${i}`, ts.body, ts)
         )
       )}
     </View>
@@ -134,7 +152,7 @@ function renderInlineSegments(segments, keyPrefix) {
 }
 
 /** Render body with # big heading, ## / ### section headers, icons, and * / ** / *** emphasis. */
-function renderFormattedBody(body) {
+function renderFormattedBody(body, ts, palette) {
   const lines = (body || '').split(/\n/);
   const elements = [];
   let key = 0;
@@ -150,12 +168,12 @@ function renderFormattedBody(body) {
             {iconName && (
               <Ionicons
                 name={ICON_MAP[iconName] || 'ellipse-outline'}
-                size={18}
-                color={colors.textPrimary}
+                size={16}
+                color={palette.label}
                 style={styles.headerIcon}
               />
             )}
-            <Text style={styles.subHeader}>{text}</Text>
+            <Text style={ts.subHeader}>{text}</Text>
           </View>
         );
       }
@@ -170,12 +188,12 @@ function renderFormattedBody(body) {
             {iconName && (
               <Ionicons
                 name={ICON_MAP[iconName] || 'ellipse-outline'}
-                size={20}
-                color={colors.textPrimary}
+                size={18}
+                color={palette.label}
                 style={styles.headerIcon}
               />
             )}
-            <Text style={styles.sectionHeader}>{text}</Text>
+            <Text style={ts.sectionHeader}>{text}</Text>
           </View>
         );
       }
@@ -190,12 +208,12 @@ function renderFormattedBody(body) {
             {iconName && (
               <Ionicons
                 name={ICON_MAP[iconName] || 'ellipse-outline'}
-                size={24}
-                color={colors.textPrimary}
+                size={20}
+                color={palette.label}
                 style={styles.headerIcon}
               />
             )}
-            <Text style={styles.bigHeading}>{text}</Text>
+            <Text style={ts.bigHeading}>{text}</Text>
           </View>
         );
       }
@@ -206,17 +224,35 @@ function renderFormattedBody(body) {
       continue;
     }
     const segments = parseInlineSegments(trimmed);
-    elements.push(renderInlineSegments(segments, key++));
+    elements.push(renderInlineSegments(segments, key++, ts, palette));
   }
   return elements;
 }
 
+/** Theme-derived text styles; body copy in Tanseek, emphasis via Tanseek Medium, accents via palette.tint. */
+function buildThemedTextStyles(palette, text) {
+  return {
+    body: { ...text.body },
+    bold: { ...text.body, fontFamily: fonts.bodyMedium },
+    italic: { ...text.body, fontStyle: 'italic' },
+    highlight: { ...text.body, fontFamily: fonts.bodyMedium, color: palette.tint },
+    inlineParagraph: { ...text.body, marginBottom: 2 },
+    bigHeading: { ...text.title3, marginBottom: 8 },
+    sectionHeader: { ...text.headline, marginTop: 12, marginBottom: 6 },
+    subHeader: { ...text.subheadline, marginTop: 8, marginBottom: 2 },
+  };
+}
+
+/**
+ * Unified insight card: eyebrow title + optional accent icon on the first row,
+ * body copy beneath. Same anatomy for AI sections, placeholders, and plain cards.
+ */
 export default function InsightCard({ title, body, highlight = '', formatted = false, iconName = null, placeholder = false, animTrigger = 0, sectionIndex = 0 }) {
-  const [cardLayout, setCardLayout] = useState({ width: 0, height: 0 });
+  const { palette, text } = useTheme();
   const [segmentAnims, setSegmentAnims] = useState([]);
-  const gradientId = `insight-${(iconName || title || '').replace(/\W/g, '')}`;
   const prevAnimTriggerRef = useRef(0);
 
+  const ts = useMemo(() => buildThemedTextStyles(palette, text), [palette, text]);
   const wordSegments = useMemo(() => (body ? getBodyWordSegments(body) : []), [body]);
 
   useEffect(() => {
@@ -257,27 +293,34 @@ export default function InsightCard({ title, body, highlight = '', formatted = f
     });
   }, [animTrigger, sectionIndex, placeholder, wordSegments]);
 
-  if (formatted) {
-    const showGradient = cardLayout.width > 0 && cardLayout.height > 0;
-    const icon = iconName ? (ICON_MAP[iconName] || ICON_MAP.summary) : null;
-    const showWordReveal = !placeholder && animTrigger > 0 && segmentAnims.length === wordSegments.length && wordSegments.length > 0;
+  const icon = iconName ? (ICON_MAP[iconName] || ICON_MAP.summary) : null;
+  const iconTint = iconName ? (getIconAccent(palette)[iconName] || palette.tint) : palette.tint;
+  const showWordReveal =
+    !placeholder &&
+    animTrigger > 0 &&
+    segmentAnims.length === wordSegments.length &&
+    wordSegments.length > 0;
 
-    const bodyContent = placeholder ? (
-      <View style={styles.formattedBody}>
+  let bodyContent;
+  if (placeholder) {
+    bodyContent = (
+      <View style={styles.bodyWrap}>
         <SkeletonLines widths={['100%', '88%', '60%']} gap={8} />
       </View>
-    ) : showWordReveal ? (
-      <View style={[styles.formattedBody, styles.wordRow]}>
+    );
+  } else if (showWordReveal) {
+    bodyContent = (
+      <View style={[styles.bodyWrap, styles.wordRow]}>
         {wordSegments.map((seg, i) => {
           if (seg.type === 'newline') {
             return <View key={`nl-${i}`} style={styles.lineBreak} />;
           }
-          const styleForType = seg.type === 'bold' ? styles.bold : seg.type === 'italic' ? styles.italic : seg.type === 'blue' ? styles.highlight : styles.body;
+          const styleForType =
+            seg.type === 'bold' ? ts.bold : seg.type === 'italic' ? ts.italic : seg.type === 'blue' ? ts.highlight : ts.body;
           return (
             <Animated.Text
               key={`${i}-${seg.text}`}
               style={[
-                styles.wordSegment,
                 styleForType,
                 {
                   opacity: segmentAnims[i].opacity,
@@ -290,136 +333,77 @@ export default function InsightCard({ title, body, highlight = '', formatted = f
           );
         })}
       </View>
-    ) : (
-      <View style={styles.formattedBody}>
-        {renderFormattedBody(body)}
-      </View>
     );
-    return (
-      <View
-        style={styles.card}
-        onLayout={(e) => setCardLayout({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}
-      >
-        {showGradient && (
-          <Svg style={styles.cardGradientSvg} width={cardLayout.width} height={cardLayout.height} preserveAspectRatio="none">
-            <Defs>
-              <LinearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">
-                <Stop offset="0%" stopColor="#0d1014" />
-                <Stop offset="100%" stopColor={colors.surface} />
-              </LinearGradient>
-            </Defs>
-            <Rect x={0} y={0} width={cardLayout.width} height={cardLayout.height} fill={`url(#${gradientId})`} rx={borderRadius.md} ry={borderRadius.md} />
-          </Svg>
-        )}
-        {icon && (
-          <Ionicons name={icon} size={20} color={colors.textSecondary} style={styles.cardIcon} />
-        )}
-        <View style={styles.cardContent}>
-          <Text style={styles.title}>{title}</Text>
-          {bodyContent}
-        </View>
-      </View>
-    );
-  }
-
-  const parts = highlight ? body.split(highlight) : [body];
-  const segments = [];
-  for (let i = 0; i < parts.length; i++) {
-    segments.push({ key: `t${i}`, text: parts[i], highlight: false });
-    if (i < parts.length - 1) {
-      segments.push({ key: `h${i}`, text: highlight, highlight: true });
+  } else if (formatted) {
+    bodyContent = <View style={styles.bodyWrap}>{renderFormattedBody(body, ts, palette)}</View>;
+  } else {
+    const safeBody = body || '';
+    const parts = highlight ? safeBody.split(highlight) : [safeBody];
+    const segments = [];
+    for (let i = 0; i < parts.length; i++) {
+      segments.push({ key: `t${i}`, text: parts[i], highlight: false });
+      if (i < parts.length - 1) {
+        segments.push({ key: `h${i}`, text: highlight, highlight: true });
+      }
     }
+    bodyContent = (
+      <View style={styles.bodyWrap}>
+        <Text style={ts.body}>
+          {segments.map((s) =>
+            s.highlight ? (
+              <Text key={s.key} style={ts.highlight}>
+                {s.text}
+              </Text>
+            ) : (
+              s.text
+            )
+          )}
+        </Text>
+      </View>
+    );
   }
 
   return (
-    <View style={[styles.card, styles.cardPlain]}>
-      <Text style={styles.title}>{title}</Text>
-      <Text style={styles.body}>
-        {segments.map((s) =>
-          s.highlight ? (
-            <Text key={s.key} style={styles.highlight}>
-              {s.text}
-            </Text>
-          ) : (
-            s.text
-          )
-        )}
-      </Text>
-    </View>
+    <Card style={styles.card}>
+      <View style={styles.topRow}>
+        <Text style={text.eyebrow}>{(title || '').toUpperCase()}</Text>
+        {icon && <Ionicons name={icon} size={16} color={iconTint} />}
+      </View>
+      {bodyContent}
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    position: 'relative',
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.md,
-    overflow: 'hidden',
+    marginHorizontal: SCREEN_MARGIN,
+    marginBottom: CARD_GAP,
   },
-  cardGradientSvg: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  cardIcon: {
-    position: 'absolute',
-    top: spacing.sm,
-    right: spacing.sm,
-    opacity: 0.4,
-    zIndex: 1,
+  bodyWrap: {
+    marginTop: 10,
   },
-  cardContent: {
-    zIndex: 1,
+  wordRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
   },
-  cardPlain: {
-    backgroundColor: colors.surface,
-  },
-  title: {
-    ...typography.headline,
-    color: colors.textPrimary,
-    marginBottom: spacing.sm,
-  },
-  body: {
-    ...typography.body,
-    color: colors.textSecondary,
-    lineHeight: 24,
-  },
-  bold: {
-    ...typography.body,
-    fontFamily: typography.fontFamilyBold,
-    color: colors.textSecondary,
-    lineHeight: 24,
-  },
-  italic: {
-    ...typography.body,
-    color: colors.textSecondary,
-    lineHeight: 24,
-    fontStyle: 'italic',
-  },
-  highlight: {
-    ...typography.body,
-    fontFamily: typography.fontFamilySemiBold,
-    color: colors.accent,
-    lineHeight: 24,
-  },
-  inlineParagraph: {
-    ...typography.body,
-    color: colors.textSecondary,
-    lineHeight: 24,
-    marginBottom: spacing.xxs,
+  lineBreak: {
+    width: '100%',
+    height: 0,
   },
   inlineRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
-    marginBottom: spacing.xxs,
+    marginBottom: 2,
   },
   inlineIcon: {
-    marginHorizontal: spacing.xxs,
+    marginHorizontal: 4,
   },
   headerRow: {
     flexDirection: 'row',
@@ -427,45 +411,9 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   headerIcon: {
-    marginRight: spacing.xs,
-  },
-  formattedBody: {
-    marginTop: spacing.xs,
-  },
-  wordRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'flex-start',
-  },
-  wordSegment: {
-    ...typography.body,
-    color: colors.textSecondary,
-    lineHeight: 24,
-  },
-  lineBreak: {
-    width: '100%',
-    height: 0,
-  },
-  bigHeading: {
-    ...typography.title2,
-    color: colors.textPrimary,
-    marginBottom: spacing.md,
-    lineHeight: 28,
-  },
-  sectionHeader: {
-    ...typography.headline,
-    color: colors.textPrimary,
-    marginTop: spacing.xl,
-    marginBottom: spacing.sm,
-  },
-  subHeader: {
-    ...typography.callout,
-    fontFamily: typography.fontFamilySemiBold,
-    color: colors.textPrimary,
-    marginTop: spacing.sm,
-    marginBottom: spacing.xxs,
+    marginRight: 6,
   },
   paragraphGap: {
-    height: spacing.sm,
+    height: 8,
   },
 });

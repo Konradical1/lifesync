@@ -1,56 +1,126 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   ScrollView,
   Text,
   View,
   StyleSheet,
-  TouchableOpacity,
+  Pressable,
   Alert,
   Modal,
   Platform,
+  RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { useWaterEntries, useStore } from '../store/useStore';
+import { useWaterEntries, useTodayWaterOz, useStore } from '../store/useStore';
 import { formatTime12h } from '../utils/time';
-import { colors, spacing, typography, borderRadius } from '../theme/constants';
+import Card from '../components/ui/Card';
+import StatBar from '../components/Home/StatBar';
+import { useTheme } from '../store/ThemeContext';
 import { isSupabaseConfigured } from '../api/supabase';
 import { deleteWaterEntryFromSupabase } from '../api/supabaseSync';
 
 const OZ_OPTIONS = [8, 12, 16, 20, 24, 32, 64];
+const SCREEN_MARGIN = 20;
+const TAB_BAR_CLEARANCE = 140;
+const REFRESH_ANIMATION_MS = 700;
+const DEFAULT_WATER_GOAL_OZ = 64;
+const BACK_HIT_SLOP = 8;
 
-function formatDateDisplay(dateStr) {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const date = new Date(y, m - 1, d);
-  const today = new Date();
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  if (dateStr === todayStr) return 'Today';
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
-  if (dateStr === yesterdayStr) return 'Yesterday';
-  return date.toLocaleDateString('default', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+function formatDateKey(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 function formatDateHeader(dateStr) {
   const [y, m, d] = dateStr.split('-').map(Number);
   const date = new Date(y, m - 1, d);
   const today = new Date();
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  if (dateStr === todayStr) return 'Today';
+  if (dateStr === formatDateKey(today)) return 'Today';
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
-  if (dateStr === yesterdayStr) return 'Yesterday';
-  return date.toLocaleDateString('default', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  if (dateStr === formatDateKey(yesterday)) return 'Yesterday';
+  return date.toLocaleDateString('default', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+/** Centered letterspaced-caps section divider, matching the Home screen. */
+function SectionHeader({ title }) {
+  const { text } = useTheme();
+  return (
+    <View style={styles.sectionHeader} accessibilityRole="header">
+      <Text style={text.eyebrow}>{title.toUpperCase()}</Text>
+    </View>
+  );
+}
+
+/** One water entry row inside a day card: ounces, time, edit/delete actions. */
+function EntryRow({ entry, isLast, onEdit, onDelete }) {
+  const { palette, text } = useTheme();
+  return (
+    <View
+      style={[
+        styles.entryRow,
+        !isLast && {
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderBottomColor: palette.separator,
+        },
+      ]}
+    >
+      <View style={styles.entryInfo}>
+        <Text style={text.subheadline}>{entry.oz} oz</Text>
+        <Text style={[text.footnote, styles.entryTime]}>
+          {formatTime12h(entry.time)}
+        </Text>
+      </View>
+      <View style={styles.entryActions}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Edit ${entry.oz} ounce entry`}
+          hitSlop={BACK_HIT_SLOP}
+          onPress={onEdit}
+          style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
+        >
+          <Ionicons name="pencil" size={18} color={palette.tint} />
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Delete ${entry.oz} ounce entry`}
+          hitSlop={BACK_HIT_SLOP}
+          onPress={onDelete}
+          style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
+        >
+          <Ionicons name="trash-outline" size={18} color={palette.red} />
+        </Pressable>
+      </View>
+    </View>
+  );
 }
 
 export default function WaterHistoryScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const { palette, text, shape } = useTheme();
   const allEntries = useWaterEntries();
-  const { dispatch } = useStore();
+  const todayOz = useTodayWaterOz();
+  const { state, dispatch } = useStore();
+
+  const waterGoal =
+    parseInt(state.profile?.waterGoalOz, 10) || DEFAULT_WATER_GOAL_OZ;
+  const progress = waterGoal > 0 ? Math.min(1, todayOz / waterGoal) : 0;
+  const percent = Math.round(progress * 100);
+
+  const [refreshing, setRefreshing] = useState(false);
+  const [animTrigger, setAnimTrigger] = useState(0);
+  const [editingEntry, setEditingEntry] = useState(null);
+  const [editOz, setEditOz] = useState(16);
 
   const groupedEntries = useMemo(() => {
     const sorted = [...allEntries].sort((a, b) => {
@@ -67,8 +137,17 @@ export default function WaterHistoryScreen() {
     return grouped;
   }, [allEntries]);
 
-  const [editingEntry, setEditingEntry] = useState(null);
-  const [editOz, setEditOz] = useState(16);
+  const sortedDates = Object.keys(groupedEntries).sort((a, b) =>
+    b.localeCompare(a),
+  );
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    setTimeout(() => {
+      setRefreshing(false);
+      setAnimTrigger((k) => k + 1);
+    }, REFRESH_ANIMATION_MS);
+  }, []);
 
   const handleDelete = (entry) => {
     Alert.alert('Delete Entry', 'Are you sure you want to delete this water entry?', [
@@ -100,187 +179,286 @@ export default function WaterHistoryScreen() {
     setEditingEntry(null);
   };
 
-  return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top, paddingBottom: spacing.xxl }]}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backTouch}>
-          <Text style={styles.backLink}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Water history</Text>
-        <View style={{ width: 50 }} />
-      </View>
+  const refreshControl = (
+    <RefreshControl
+      refreshing={refreshing}
+      onRefresh={onRefresh}
+      tintColor={palette.label}
+      // Content starts below the notch, so push the spinner down the same
+      // amount or it hides behind the status bar.
+      progressViewOffset={insets.top + 12}
+      colors={Platform.OS === 'android' ? [palette.tint] : undefined}
+      progressBackgroundColor={Platform.OS === 'android' ? palette.card : undefined}
+    />
+  );
 
-      {Object.keys(groupedEntries).length === 0 ? (
-        <Text style={styles.empty}>No water entries yet. Log water from the home screen.</Text>
-      ) : (
-        Object.keys(groupedEntries)
-          .sort((a, b) => b.localeCompare(a))
-          .map((date) => (
-            <View key={date}>
-              <View style={styles.dateHeader}>
-                <Text style={styles.dateHeaderText}>{formatDateHeader(date)}</Text>
-                <Text style={styles.dateTotal}>
-                  {groupedEntries[date].reduce((s, e) => s + (Number(e.oz) || 0), 0)} oz total
-                </Text>
-              </View>
-              {groupedEntries[date].map((entry) => (
-                <View key={entry.id} style={styles.card}>
-                  <View style={styles.cardRow}>
-                    <View style={styles.cardLeft}>
-                      <Text style={styles.entryOz}>{entry.oz} oz</Text>
-                      <Text style={styles.entryMeta}>
-                        {formatDateDisplay(entry.date)} • {formatTime12h(entry.time)}
-                      </Text>
-                    </View>
-                    <View style={styles.actionButtons}>
-                      <TouchableOpacity
-                        style={styles.iconButton}
-                        onPress={() => openEdit(entry)}
-                      >
-                        <Ionicons name="pencil" size={20} color={colors.accent} />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.iconButton}
-                        onPress={() => handleDelete(entry)}
-                      >
-                        <Ionicons name="trash-outline" size={20} color="#EF4444" />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
+  return (
+    <View style={[styles.wrapper, { backgroundColor: palette.background }]}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={refreshControl}
+      >
+        <View style={styles.header}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            hitSlop={BACK_HIT_SLOP}
+            onPress={() => navigation.goBack()}
+            style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
+          >
+            <Ionicons name="chevron-back" size={26} color={palette.label} />
+          </Pressable>
+          <Text style={text.display} accessibilityRole="header">
+            water.
+          </Text>
+        </View>
+
+        <Card style={styles.summaryCard}>
+          <Text style={text.eyebrow}>TODAY</Text>
+          <Text style={[text.caption, styles.percentLine, { color: palette.cyan }]}>
+            {`${percent}% OF GOAL`}
+          </Text>
+          <View style={styles.valueRow}>
+            <Text style={text.statValue}>{todayOz}</Text>
+            <Text style={[text.footnote, styles.unit]}>oz</Text>
+          </View>
+          <Text style={text.footnote}>{`of ${waterGoal} oz`}</Text>
+          <View style={styles.barWrap}>
+            <StatBar
+              progress={progress}
+              color={palette.cyan}
+              animTrigger={animTrigger}
+            />
+          </View>
+        </Card>
+
+        <SectionHeader title="History" />
+
+        {sortedDates.length === 0 ? (
+          <Card style={styles.card}>
+            <Text style={[text.footnote, styles.emptyText]}>
+              No water entries yet. Log water from the home screen.
+            </Text>
+          </Card>
+        ) : (
+          sortedDates.map((date) => {
+            const dayEntries = groupedEntries[date];
+            const dayTotal = dayEntries.reduce(
+              (sum, e) => sum + (Number(e.oz) || 0),
+              0,
+            );
+            return (
+              <Card key={date} style={[styles.card, styles.dayCard]}>
+                <View
+                  style={[
+                    styles.dayHeader,
+                    {
+                      borderBottomWidth: StyleSheet.hairlineWidth,
+                      borderBottomColor: palette.separator,
+                    },
+                  ]}
+                >
+                  <Text style={text.headline}>{formatDateHeader(date)}</Text>
+                  <Text style={text.footnote}>{`${dayTotal} oz`}</Text>
                 </View>
-              ))}
-            </View>
-          ))
-      )}
+                {dayEntries.map((entry, index) => (
+                  <EntryRow
+                    key={entry.id}
+                    entry={entry}
+                    isLast={index === dayEntries.length - 1}
+                    onEdit={() => openEdit(entry)}
+                    onDelete={() => handleDelete(entry)}
+                  />
+                ))}
+              </Card>
+            );
+          })
+        )}
+      </ScrollView>
 
       {editingEntry && (
-        <Modal visible transparent animationType="fade">
-          <TouchableOpacity
+        <Modal
+          visible
+          transparent
+          animationType="fade"
+          onRequestClose={() => setEditingEntry(null)}
+        >
+          <Pressable
             style={styles.modalOverlay}
-            activeOpacity={1}
             onPress={() => setEditingEntry(null)}
           >
-            <View style={styles.editSheet} onStartShouldSetResponder={() => true}>
-              <Text style={styles.editTitle}>Change amount</Text>
+            <Pressable
+              style={[
+                styles.editSheet,
+                {
+                  backgroundColor: palette.card,
+                  borderTopLeftRadius: shape.cardRadius,
+                  borderTopRightRadius: shape.cardRadius,
+                  borderCurve: shape.borderCurve,
+                  paddingBottom: insets.bottom + 20,
+                },
+              ]}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <Text style={[text.title3, styles.editTitle]}>Change amount</Text>
               <View style={styles.ozGrid}>
-                {OZ_OPTIONS.map((oz) => (
-                  <TouchableOpacity
-                    key={oz}
-                    style={[styles.ozChip, editOz === oz && styles.ozChipSelected]}
-                    onPress={() => setEditOz(oz)}
-                  >
-                    <Text style={[styles.ozChipText, editOz === oz && styles.ozChipTextSelected]}>
-                      {oz} oz
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                {OZ_OPTIONS.map((oz) => {
+                  const isSelected = editOz === oz;
+                  return (
+                    <Pressable
+                      key={oz}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${oz} ounces`}
+                      accessibilityState={{ selected: isSelected }}
+                      onPress={() => setEditOz(oz)}
+                      style={({ pressed }) => [
+                        styles.ozChip,
+                        {
+                          backgroundColor: isSelected ? palette.cyan : palette.fill,
+                          borderRadius: shape.controlRadius,
+                          borderCurve: shape.borderCurve,
+                        },
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          text.subheadline,
+                          { color: isSelected ? '#FFFFFF' : palette.label },
+                        ]}
+                      >
+                        {oz} oz
+                      </Text>
+                    </Pressable>
+                  );
+                })}
               </View>
               <View style={styles.editActions}>
-                <TouchableOpacity style={styles.cancelButton} onPress={() => setEditingEntry(null)}>
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.saveButton} onPress={saveEdit}>
-                  <Text style={styles.saveButtonText}>Save</Text>
-                </TouchableOpacity>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Cancel"
+                  onPress={() => setEditingEntry(null)}
+                  style={({ pressed }) => [styles.cancelButton, pressed && styles.pressed]}
+                >
+                  <Text style={[text.subheadline, { color: palette.secondaryLabel }]}>
+                    Cancel
+                  </Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Save"
+                  onPress={saveEdit}
+                  style={({ pressed }) => [
+                    styles.saveButton,
+                    {
+                      backgroundColor: palette.cyan,
+                      borderRadius: shape.controlRadius,
+                      borderCurve: shape.borderCurve,
+                    },
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Text style={[text.subheadline, { color: '#FFFFFF' }]}>Save</Text>
+                </Pressable>
               </View>
-            </View>
-          </TouchableOpacity>
+            </Pressable>
+          </Pressable>
         </Modal>
       )}
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    flex: 1,
+  },
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: 'transparent',
   },
   content: {
-    paddingHorizontal: spacing.md,
+    paddingBottom: TAB_BAR_CLEARANCE,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    gap: 8,
+    paddingHorizontal: SCREEN_MARGIN,
+    marginBottom: 16,
   },
-  backTouch: {
-    padding: spacing.xs,
+  backButton: {
+    width: 26,
+    alignItems: 'flex-start',
+    marginLeft: -6,
   },
-  backLink: {
-    fontSize: typography.body.fontSize,
-    color: colors.accent,
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    marginHorizontal: SCREEN_MARGIN,
+    marginTop: 30,
+    marginBottom: 12,
   },
-  title: {
-    fontSize: typography.title2.fontSize,
-    fontWeight: typography.title2.fontWeight,
-    color: colors.textPrimary,
+  summaryCard: {
+    marginHorizontal: SCREEN_MARGIN,
   },
-  empty: {
-    fontSize: typography.body.fontSize,
-    color: colors.textTertiary,
-    textAlign: 'center',
-    marginTop: spacing.xxl,
-    paddingHorizontal: spacing.lg,
+  percentLine: {
+    marginTop: 10,
+    letterSpacing: 0.6,
   },
-  dateHeader: {
-    marginTop: spacing.lg,
-    marginBottom: spacing.sm,
-    paddingBottom: spacing.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  dateHeaderText: {
-    fontSize: typography.title3.fontSize,
-    fontWeight: '600',
-    color: colors.textPrimary,
-  },
-  dateTotal: {
-    fontSize: typography.footnote.fontSize,
-    color: colors.textSecondary,
+  valueRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
     marginTop: 2,
+  },
+  unit: {
+    marginBottom: 1,
+  },
+  barWrap: {
+    marginTop: 10,
   },
   card: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    marginTop: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
+    marginHorizontal: SCREEN_MARGIN,
   },
-  cardRow: {
+  dayCard: {
+    marginBottom: 12,
+    paddingVertical: 4,
+  },
+  dayHeader: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    paddingVertical: 10,
   },
-  cardLeft: {
-    flex: 1,
+  emptyText: {
+    textAlign: 'center',
+    paddingVertical: 8,
   },
-  entryOz: {
-    fontSize: typography.headline.fontSize,
-    fontWeight: '600',
-    color: colors.textPrimary,
-  },
-  entryMeta: {
-    fontSize: typography.footnote.fontSize,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  actionButtons: {
+  entryRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+  },
+  entryInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  entryTime: {
+    marginTop: 1,
+  },
+  entryActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
   },
   iconButton: {
-    padding: spacing.xs,
+    padding: 2,
   },
   modalOverlay: {
     flex: 1,
@@ -288,66 +466,37 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   editSheet: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: borderRadius.lg,
-    borderTopRightRadius: borderRadius.lg,
-    padding: spacing.lg,
-    paddingBottom: spacing.xxl + (Platform.OS === 'ios' ? 34 : 0),
+    paddingHorizontal: SCREEN_MARGIN,
+    paddingTop: 20,
   },
   editTitle: {
-    fontSize: typography.title3.fontSize,
-    fontWeight: '600',
-    color: colors.textPrimary,
-    marginBottom: spacing.md,
+    marginBottom: 16,
   },
   ozGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginBottom: spacing.lg,
+    gap: 10,
+    marginBottom: 20,
   },
   ozChip: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.sm,
-    backgroundColor: colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  ozChipSelected: {
-    backgroundColor: colors.water + '30',
-    borderColor: colors.water,
-  },
-  ozChipText: {
-    fontSize: typography.callout.fontSize,
-    color: colors.textSecondary,
-  },
-  ozChipTextSelected: {
-    color: colors.water,
-    fontWeight: '600',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
   },
   editActions: {
     flexDirection: 'row',
-    gap: spacing.md,
+    alignItems: 'center',
     justifyContent: 'flex-end',
+    gap: 16,
   },
   cancelButton: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-  },
-  cancelButtonText: {
-    fontSize: typography.body.fontSize,
-    color: colors.textSecondary,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
   },
   saveButton: {
-    backgroundColor: colors.water,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    borderRadius: borderRadius.sm,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
   },
-  saveButtonText: {
-    fontSize: typography.body.fontSize,
-    fontWeight: '600',
-    color: colors.background,
+  pressed: {
+    opacity: 0.7,
   },
 });

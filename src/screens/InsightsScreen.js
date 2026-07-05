@@ -5,17 +5,23 @@ import {
   View,
   StyleSheet,
   ActivityIndicator,
-  TouchableOpacity,
+  Pressable,
   RefreshControl,
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import { useStore, useEvents, useLatestInsight } from "../store/useStore";
+import { useStore, useLatestInsight } from "../store/useStore";
 import { getInsights } from "../api/ai";
 import InsightCard from "../components/Insights/InsightCard";
-import { colors, spacing, typography } from "../theme/constants";
+import Card from "../components/ui/Card";
+import { LiquidGlass } from "../components/ui/LiquidGlass";
+import { useTheme } from "../store/ThemeContext";
+
+const SCREEN_MARGIN = 20;
+const REFRESH_ANIMATION_MS = 700;
+const REFRESH_BUTTON_SIZE = 40;
+const DAYS_BACK = 7;
 
 function formatDateKey(d) {
   const y = d.getFullYear();
@@ -26,7 +32,7 @@ function formatDateKey(d) {
 
 function getLast7Days() {
   const out = [];
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < DAYS_BACK; i++) {
     const d = new Date();
     d.setDate(d.getDate() - i);
     out.push(formatDateKey(d));
@@ -67,11 +73,34 @@ function parseInsightSections(text) {
   return sections;
 }
 
+/** Centered letterspaced-caps section divider (same pattern as Home). */
+function SectionHeader({ title }) {
+  const { text } = useTheme();
+  return (
+    <View style={styles.sectionHeader} accessibilityRole="header">
+      <Text style={text.eyebrow}>{title.toUpperCase()}</Text>
+    </View>
+  );
+}
+
+/** One small count tile in the week grid: eyebrow, big number, context line. */
+function WeekStat({ label, count, unit, color }) {
+  const { text } = useTheme();
+  return (
+    <Card style={styles.weekStat}>
+      <Text style={text.eyebrow}>{label.toUpperCase()}</Text>
+      <View style={styles.weekStatValueRow}>
+        <Text style={[text.statValue, { color }]}>{count}</Text>
+        <Text style={[text.footnote, styles.weekStatUnit]}>{unit}</Text>
+      </View>
+    </Card>
+  );
+}
+
 export default function InsightsScreen() {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
+  const { palette, text } = useTheme();
   const { state, dispatch } = useStore();
-  const events = useEvents();
   const latestInsight = useLatestInsight();
   const today = formatDateKey(new Date());
   const dates = getLast7Days();
@@ -94,7 +123,6 @@ export default function InsightsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const hasAutoFetchedNewDay = useRef(false);
 
-  const REFRESH_ANIMATION_MS = 700;
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     setTimeout(() => {
@@ -145,191 +173,153 @@ export default function InsightsScreen() {
     }
   }, [latestInsight?.date, today]);
 
-  const todayEvents = events.filter((e) => e.date === today);
-  const sleepCount = events.filter((e) => e.type === "sleep").length;
-  const foodCount = events.filter((e) => e.type === "food").length;
+  const weekMeals = recentEvents.filter((e) => e.type === "food").length;
+  const weekSleep = recentEvents.filter((e) => e.type === "sleep").length;
+  const weekMoods = moods.length;
+  const weekJournal = recentJournal.length;
+  const hasAnyData = weekMeals + weekSleep + weekMoods + weekJournal > 0;
+
   const insightSections = latestInsight?.text
     ? parseInsightSections(latestInsight.text)
     : [];
+  const showPlaceholders = aiLoading || refreshing;
 
   const refreshControl = (
     <RefreshControl
       refreshing={refreshing}
       onRefresh={onRefresh}
-      tintColor={colors.accent}
-      title="Refreshing"
-      titleColor={colors.textSecondary}
-      colors={Platform.OS === "android" ? [colors.accent] : undefined}
-      progressViewOffset={Platform.OS === "android" ? 0 : undefined}
+      tintColor={palette.label}
+      progressViewOffset={insets.top + 12}
+      colors={Platform.OS === "android" ? [palette.tint] : undefined}
       progressBackgroundColor={
-        Platform.OS === "android" ? colors.surface : undefined
+        Platform.OS === "android" ? palette.card : undefined
       }
     />
   );
 
   const listHeader = (
     <>
-      <View style={styles.aiSection}>
-        <View style={styles.aiSectionHeader}>
-          <View>
-            <Text style={styles.aiLabel}>
-              <Text style={styles.aiLabelAccent}>AI</Text> INSIGHTS
-            </Text>
-            <Text style={styles.aiTitle}>Weekly readout</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.refreshIconButton}
-            onPress={fetchInsights}
-            disabled={aiLoading}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            {aiLoading ? (
-              <ActivityIndicator size="small" color={colors.accent} />
-            ) : (
-              <Ionicons
-                name="refresh-outline"
-                size={22}
-                color={colors.accent}
-              />
-            )}
-          </TouchableOpacity>
+      <View style={styles.header}>
+        <View style={styles.headerTitleWrap}>
+          <Text style={text.display} accessibilityRole="header">
+            insights.
+          </Text>
+          <Text style={[text.footnote, styles.subtitle]}>
+            Patterns from your last 7 days
+          </Text>
         </View>
-        {aiLoading && (
-          <View style={styles.loadingRow}>
-            <ActivityIndicator color={colors.accent} size="small" />
-            <Text style={styles.loadingText}>Generating insights…</Text>
-          </View>
-        )}
-        {aiError && <Text style={styles.errorText}>{aiError}</Text>}
-        {aiLoading || refreshing ? (
-          PLACEHOLDER_SECTIONS.map((section) => (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Regenerate insights"
+          onPress={fetchInsights}
+          disabled={aiLoading}
+          hitSlop={8}
+          style={({ pressed }) => pressed && styles.pressed}
+        >
+          <LiquidGlass interactive style={styles.refreshButton}>
+            {aiLoading ? (
+              <ActivityIndicator size="small" color={palette.label} />
+            ) : (
+              <Ionicons name="refresh" size={18} color={palette.label} />
+            )}
+          </LiquidGlass>
+        </Pressable>
+      </View>
+
+      <SectionHeader title="This Week" />
+      <View style={styles.weekGrid}>
+        <WeekStat
+          label="Meals"
+          count={weekMeals}
+          unit="logged"
+          color={palette.green}
+        />
+        <WeekStat
+          label="Sleep"
+          count={weekSleep}
+          unit={weekSleep === 1 ? "night" : "nights"}
+          color={palette.indigo}
+        />
+      </View>
+      <View style={[styles.weekGrid, styles.weekGridSecondRow]}>
+        <WeekStat
+          label="Moods"
+          count={weekMoods}
+          unit="check-ins"
+          color={palette.pink}
+        />
+        <WeekStat
+          label="Journal"
+          count={weekJournal}
+          unit={weekJournal === 1 ? "entry" : "entries"}
+          color={palette.purple}
+        />
+      </View>
+
+      <SectionHeader title="Weekly Readout" />
+      {aiError ? (
+        <Text style={[text.footnote, styles.statusText, { color: palette.red }]}>
+          {aiError}
+        </Text>
+      ) : null}
+      {showPlaceholders ? (
+        PLACEHOLDER_SECTIONS.map((section) => (
+          <InsightCard
+            key={section.title}
+            title={section.title}
+            iconName={section.iconName}
+            placeholder
+            formatted
+          />
+        ))
+      ) : latestInsight?.text ? (
+        <>
+          {insightSections.length > 0 ? (
+            insightSections.map((section, index) => (
+              <InsightCard
+                key={section.title}
+                title={section.title}
+                body={section.body}
+                iconName={section.iconName}
+                formatted
+                animTrigger={animTrigger}
+                sectionIndex={index}
+              />
+            ))
+          ) : (
             <InsightCard
-              key={section.title}
-              title={section.title}
-              iconName={section.iconName}
-              placeholder
+              title="From your recent data"
+              body={latestInsight.text}
               formatted
             />
-          ))
-        ) : latestInsight?.text ? (
-          <>
-            {insightSections.length > 0 ? (
-              insightSections.map((section, index) => (
-                <InsightCard
-                  key={section.title}
-                  title={section.title}
-                  body={section.body}
-                  iconName={section.iconName}
-                  formatted
-                  animTrigger={animTrigger}
-                  sectionIndex={index}
-                />
-              ))
-            ) : (
-              <InsightCard
-                title="From your recent data"
-                body={latestInsight.text}
-                formatted
-              />
-            )}
-            <Text style={styles.generatedLabel}>
-              Generated{" "}
-              {latestInsight.date === today ? "today" : latestInsight.date}
-            </Text>
-          </>
-        ) : null}
-        {!latestInsight?.text &&
-          !aiLoading &&
-          !aiError &&
-          recentEvents.length === 0 &&
-          recentJournal.length === 0 &&
-          moods.length === 0 && (
-            <Text style={styles.hint}>
-              Log events, journal, and moods to see AI insights.
-            </Text>
           )}
-        {!latestInsight?.text &&
-          !aiLoading &&
-          !aiError &&
-          (recentEvents.length > 0 ||
-            recentJournal.length > 0 ||
-            moods.length > 0) && (
-            <Text style={styles.hint}>
-              Tap the refresh icon to generate your first insights.
-            </Text>
-          )}
-      </View>
-      <InsightCard
-        title="Today at a glance"
-        body={`You logged ${todayEvents.length} events today. ${todayEvents.length > 0 ? "Keep up the consistency — small steps add up." : "Start logging to see insights."}`}
-        highlight={
-          todayEvents.length > 0 ? "Keep up the consistency" : "Start logging"
-        }
-      />
-      <InsightCard
-        title="Sleep patterns"
-        body={
-          sleepCount === 0
-            ? "Log your sleep to see patterns and trends here."
-            : `You have logged ${sleepCount} sleep ${sleepCount === 1 ? "entry" : "entries"}. Regular sleep tracking helps identify trends.`
-        }
-        highlight={sleepCount > 0 ? "Regular sleep tracking" : "Log your sleep"}
-      />
-      <InsightCard
-        title="Nutrition"
-        body={`${foodCount} meals logged. Tracking food supports awareness.`}
-        highlight="supports awareness"
-      />
-      <View style={styles.chartPlaceholder}>
-        <Text style={styles.chartTitle}>Weekly activity</Text>
-        <View style={styles.barChart}>
-          {[60, 80, 45, 90, 70, 85, 40].map((h, i) => (
-            <View
-              key={i}
-              style={[
-                styles.bar,
-                { height: h, backgroundColor: colors.accent },
-              ]}
-            />
-          ))}
-        </View>
-        <Text style={styles.chartLabel}>Mon Tue Wed Thu Fri Sat Sun</Text>
-      </View>
+          <Text style={[text.caption, styles.generatedLabel]}>
+            {`GENERATED ${latestInsight.date === today ? "TODAY" : latestInsight.date}`}
+          </Text>
+        </>
+      ) : (
+        <Text style={[text.footnote, styles.statusText]}>
+          {hasAnyData
+            ? "Tap refresh to generate your first weekly readout."
+            : "Log meals, sleep, moods, or journal entries to unlock insights."}
+        </Text>
+      )}
     </>
   );
 
   return (
-    <View style={styles.wrapper}>
-      <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
-        {navigation.canGoBack() ? (
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="chevron-back" size={22} color={colors.accent} />
-            <Text style={styles.backLink}>Back</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.backPlaceholder} />
-        )}
-        <View style={styles.headerTitleWrap}>
-          <Text style={styles.eyebrow}>Patterns</Text>
-          <Text style={styles.title}>Insights</Text>
-        </View>
-        <View style={styles.headerSpacer} />
-      </View>
+    <View style={[styles.wrapper, { backgroundColor: palette.background }]}>
       <FlatList
         style={styles.container}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]}
         contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={false}
         data={[]}
         renderItem={() => null}
         ListHeaderComponent={listHeader}
         refreshControl={refreshControl}
-        alwaysBounceVertical={true}
-        bounces={true}
+        alwaysBounceVertical
+        bounces
       />
     </View>
   );
@@ -338,136 +328,76 @@ export default function InsightsScreen() {
 const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
-    backgroundColor: colors.background,
   },
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: "transparent",
   },
   content: {
     paddingBottom: 140,
   },
   header: {
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.lg,
-  },
-  backButton: {
-    alignSelf: "flex-start",
     flexDirection: "row",
-    alignItems: "center",
-    marginLeft: -6,
-    marginBottom: spacing.sm,
-  },
-  backPlaceholder: {
-    height: spacing.lg,
-  },
-  backLink: {
-    fontSize: typography.body.fontSize,
-    color: colors.accent,
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    paddingHorizontal: SCREEN_MARGIN,
+    paddingTop: 8,
   },
   headerTitleWrap: {
-    alignSelf: "stretch",
-  },
-  eyebrow: {
-    ...typography.caption1,
-    color: colors.textTertiary,
-    textTransform: "uppercase",
-  },
-  title: {
-    fontSize: typography.largeTitle.fontSize,
-    fontFamily: typography.fontFamilyBold,
-    color: colors.textPrimary,
-  },
-  chartPlaceholder: {
-    backgroundColor: "rgba(255,255,255,0.055)",
-    borderRadius: 24,
-    padding: spacing.md,
-    marginHorizontal: spacing.md,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-  },
-  chartTitle: {
-    fontSize: typography.headline.fontSize,
-    fontWeight: typography.headline.fontWeight,
-    color: colors.textPrimary,
-    marginBottom: spacing.sm,
-  },
-  barChart: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    justifyContent: "space-between",
-    height: 120,
-    gap: 8,
-  },
-  bar: {
     flex: 1,
-    borderRadius: 4,
-    minHeight: 8,
+    minWidth: 0,
   },
-  chartLabel: {
-    fontSize: typography.caption1.fontSize,
-    color: colors.textTertiary,
-    marginTop: spacing.xs,
+  subtitle: {
+    marginTop: 4,
+  },
+  refreshButton: {
+    width: REFRESH_BUTTON_SIZE,
+    height: REFRESH_BUTTON_SIZE,
+    borderRadius: REFRESH_BUTTON_SIZE / 2,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    marginTop: 4,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginHorizontal: SCREEN_MARGIN,
+    marginTop: 30,
+    marginBottom: 12,
+  },
+  weekGrid: {
+    flexDirection: "row",
+    gap: 12,
+    marginHorizontal: SCREEN_MARGIN,
+  },
+  weekGridSecondRow: {
+    marginTop: 12,
+  },
+  weekStat: {
+    flex: 1,
+  },
+  weekStatValueRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 5,
+    marginTop: 6,
+  },
+  weekStatUnit: {
+    marginBottom: 1,
+  },
+  statusText: {
     textAlign: "center",
-  },
-  aiSection: {
-    marginBottom: spacing.md,
-    marginHorizontal: spacing.md,
-    borderRadius: 28,
-    padding: spacing.md,
-    backgroundColor: "rgba(255,255,255,0.055)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-  },
-  aiSectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: spacing.sm,
-  },
-  aiLabel: {
-    ...typography.footnote,
-    color: colors.textSecondary,
-    textTransform: "uppercase",
-  },
-  aiTitle: {
-    marginTop: 2,
-    fontSize: typography.title3.fontSize,
-    fontFamily: typography.fontFamilyBold,
-    color: colors.textPrimary,
-  },
-  aiLabelAccent: {
-    color: colors.accent,
-    fontFamily: typography.fontFamilySemiBold,
-  },
-  refreshIconButton: {
-    padding: spacing.xs,
-    marginRight: -spacing.xs,
-  },
-  loadingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  loadingText: {
-    fontSize: typography.footnote.fontSize,
-    color: colors.textSecondary,
-  },
-  errorText: {
-    fontSize: typography.footnote.fontSize,
-    color: colors.textTertiary,
-    marginBottom: spacing.sm,
-  },
-  hint: {
-    fontSize: typography.footnote.fontSize,
-    color: colors.textTertiary,
-    fontStyle: "italic",
+    marginHorizontal: SCREEN_MARGIN,
+    marginBottom: 12,
   },
   generatedLabel: {
-    fontSize: typography.caption1.fontSize,
-    color: colors.textTertiary,
-    marginTop: spacing.xs,
-    marginBottom: spacing.xs,
+    textAlign: "center",
+    letterSpacing: 1.2,
+    marginTop: 2,
+  },
+  pressed: {
+    opacity: 0.7,
   },
 });

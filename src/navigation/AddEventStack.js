@@ -11,7 +11,9 @@ const Stack = createNativeStackNavigator();
 
 export default function AddEventStack() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator
+      screenOptions={{ headerShown: false, fullScreenGestureEnabled: true }}
+    >
       <Stack.Screen name="EventTypeList" component={EventTypeListScreen} />
       <Stack.Screen name="SleepEvent" component={SleepEventScreen} />
       <Stack.Screen name="FoodEvent" component={FoodEventScreen} />

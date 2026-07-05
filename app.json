@@ -1,10 +1,11 @@
 {
   "expo": {
-    "name": "JournalX2",
+    "name": "LifeSync",
     "slug": "JournalX2",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/AppLogo2.jpg",
+    "scheme": "lifesync",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
@@ -14,8 +15,14 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.JournalX2",
-      "icon": "./assets/AppLogo2.jpg"
+      "bundleIdentifier": "com.konradfischer.lifesync",
+      "buildNumber": "1",
+      "icon": "./assets/AppLogo2.jpg",
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "LifeSync uses Face ID to unlock the app and keep your journal private.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -23,7 +30,7 @@
         "backgroundColor": "#0D1117"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.JournalX2"
+      "package": "com.konradfischer.lifesync"
     },
     "web": {
       "favicon": "./assets/AppLogoTS.png"
@@ -31,6 +38,7 @@
     "plugins": [
       "@react-native-community/datetimepicker",
       "expo-font",
+      "expo-apple-authentication",
       [
         "expo-notifications",
         {
