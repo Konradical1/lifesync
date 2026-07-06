@@ -19,46 +19,45 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 
-const appJson = require('./app.json');
-
 const pngIcon = './assets/icon.png';
 const hasPngIcon = fs.existsSync(path.join(__dirname, 'assets', 'icon.png'));
-const icon = hasPngIcon ? pngIcon : appJson.expo.icon;
 
-const googleIosUrlScheme = process.env.GOOGLE_IOS_URL_SCHEME || '';
-const plugins = [...appJson.expo.plugins];
-if (googleIosUrlScheme) {
-  plugins.push([
-    '@react-native-google-signin/google-signin',
-    { iosUrlScheme: googleIosUrlScheme },
-  ]);
-}
+module.exports = ({ config }) => {
+  const icon = hasPngIcon ? pngIcon : config.icon;
+  const googleIosUrlScheme = process.env.GOOGLE_IOS_URL_SCHEME || '';
+  const plugins = [...(config.plugins || [])];
 
-module.exports = {
-  ...appJson,
-  expo: {
-    ...appJson.expo,
+  if (googleIosUrlScheme) {
+    plugins.push([
+      '@react-native-google-signin/google-signin',
+      { iosUrlScheme: googleIosUrlScheme },
+    ]);
+    plugins.push('./plugins/withIosModularHeaders');
+  }
+
+  return {
+    ...config,
     owner: 'konradical1',
     icon,
     ios: {
-      ...appJson.expo.ios,
+      ...config.ios,
       icon,
     },
     android: {
-      ...appJson.expo.android,
+      ...config.android,
       adaptiveIcon: {
-        ...appJson.expo.android.adaptiveIcon,
+        ...config.android.adaptiveIcon,
         foregroundImage: icon,
       },
     },
     plugins,
     extra: {
-      ...appJson.expo?.extra,
+      ...config.extra,
       eas: { projectId: 'e2f2eda3-cdc4-47ff-b156-a0d2675629d0' },
       supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL || '',
       supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
       googleWebClientId: process.env.GOOGLE_WEB_CLIENT_ID || '',
       googleIosClientId: process.env.GOOGLE_IOS_CLIENT_ID || '',
     },
-  },
+  };
 };
