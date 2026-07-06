@@ -10,6 +10,39 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MODEL = "openai/gpt-4.1-mini";
 const TIMEOUT_MS = 15000;
 
+interface InsightEvent {
+  date?: string;
+  type?: string;
+  description?: string;
+  name?: string;
+  note?: string;
+  time?: string;
+  duration?: number;
+  calories?: number;
+  startTime?: string;
+  endTime?: string;
+}
+
+interface InsightJournalEntry {
+  date?: string;
+  text?: string;
+  time?: string;
+}
+
+interface InsightMood {
+  date?: string;
+  emotion?: string;
+  intensity?: number;
+}
+
+interface InsightsBody {
+  events?: unknown;
+  journal?: unknown;
+  moods?: unknown;
+  today?: unknown;
+  profile?: unknown;
+}
+
 /** Format YYYY-MM-DD as "Monday, February 16, 2026" or "Today" / "Yesterday" relative to ref. */
 function formatDateWithWeekday(dateStr: string, todayStr: string): string {
   const [y, m, d] = dateStr.split("-").map(Number);
@@ -57,7 +90,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: "Server misconfiguration" });
   }
 
-  const { events = [], journal = [], moods = [], today: clientToday, profile } = req.body ?? {};
+  const body = (req.body ?? {}) as InsightsBody;
+  const events = Array.isArray(body.events) ? (body.events as InsightEvent[]) : [];
+  const journal = Array.isArray(body.journal) ? (body.journal as InsightJournalEntry[]) : [];
+  const moods = body.moods;
+  const clientToday = body.today;
+  const profile = body.profile;
 
   // Use client's "today" (YYYY-MM-DD) so insights match the user's timezone; fallback to server date
   const todayStr =
@@ -71,8 +109,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!eventsByDate[d]) eventsByDate[d] = [];
     let line: string;
     if (e.type === "sleep" && (e.startTime != null || e.endTime != null)) {
-      const start = (e as { startTime?: string }).startTime ?? "—";
-      const end = (e as { endTime?: string }).endTime ?? "—";
+      const start = e.startTime ?? "—";
+      const end = e.endTime ?? "—";
       line = `sleep: ${start}–${end}`;
     } else {
       line = `${e.type}: ${e.description ?? e.name ?? e.note ?? ""} ${e.time ?? ""} ${e.duration ? e.duration + " min" : ""} ${e.calories != null ? e.calories + " cal" : ""}`.trim();
@@ -88,17 +126,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const journalText =
     journal.length > 0
       ? journal
-          .map((j: { date?: string; text?: string; time?: string }) => {
+          .map((j) => {
             const label = j.date ? formatDateWithWeekday(j.date, todayStr) : "";
             return `[${label} ${j.time ?? ""}] ${j.text ?? ""}`;
           })
           .join("\n")
       : "No journal entries.";
-  const moodEntries = Array.isArray(moods) ? moods : Object.entries(moods).map(([date, m]) => ({ ...(m as object), date }));
+  const moodEntries: InsightMood[] = Array.isArray(moods)
+    ? (moods as InsightMood[])
+    : moods && typeof moods === "object"
+      ? Object.entries(moods as Record<string, Omit<InsightMood, "date">>).map(([date, m]) => ({ ...m, date }))
+      : [];
   const moodsText =
     moodEntries.length > 0
       ? moodEntries
-          .map((m: { date?: string; emotion?: string; intensity?: number }) => {
+          .map((m) => {
             const label = m.date ? formatDateWithWeekday(m.date, todayStr) : "";
             return `${label}: ${m.emotion ?? "—"} (${m.intensity ?? "—"})`;
           })

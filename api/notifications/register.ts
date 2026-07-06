@@ -6,6 +6,11 @@ import { requireUser } from "../_lib/auth";
 const supabaseUrl = process.env.SUPABASE_URL ?? "";
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 
+interface RegisterBody {
+  token?: unknown;
+  timezone?: unknown;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -20,7 +25,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const userId = await requireUser(req, res);
   if (!userId) return;
 
-  const { token, timezone } = req.body ?? {};
+  const { token, timezone } = (req.body ?? {}) as RegisterBody;
 
   if (!token || typeof token !== "string" || !token.startsWith("ExponentPushToken[")) {
     return res.status(400).json({ error: "Invalid push token" });

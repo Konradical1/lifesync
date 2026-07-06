@@ -7,6 +7,11 @@ const FAST_MODEL = "openai/gpt-4.1-mini";
 const MAX_BODY_CHARS = 2000;
 const TIMEOUT_MS = 5000;
 
+interface ExtractBody {
+  text?: unknown;
+  type?: unknown;
+}
+
 const FOOD_SYSTEM = `You are a nutrition assistant. From the user's food description, output a single JSON object with estimated macros.
 
 CRITICAL: Never return 0 for calories, protein, carbs, or fat for any real food (meals, snacks, bars, drinks with calories). Only use 0 for things like water or black coffee. Every real food has calories and at least some protein, carbs, or fat—always estimate reasonable numbers.
@@ -50,7 +55,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: "Server misconfiguration" });
   }
 
-  const { text, type } = req.body ?? {};
+  const { text, type } = (req.body ?? {}) as ExtractBody;
   const raw = typeof text === "string" ? text.trim() : "";
   if (!raw) {
     return res.status(400).json({ error: "Missing or empty text" });
