@@ -3,6 +3,7 @@
  * Loads data on init, saves on changes. Requires authenticated session.
  */
 import { supabase, isSupabaseConfigured } from './supabase';
+const { assertSupabaseResults } = require('./supabaseResults');
 
 async function ensureSignedIn() {
   if (!supabase) return null;
@@ -70,6 +71,17 @@ export async function loadFromSupabase() {
       supabase.from('water').select('id, date, time, oz, created_at').eq('user_id', userId).order('created_at', { ascending: false }),
     ]);
 
+    // An authoritative foreground refresh must be all-or-nothing. Treating a
+    // failed events query as an empty array would erase the visible timeline.
+    assertSupabaseResults({
+      events: eventsRes,
+      journal: journalRes,
+      summaries: summariesRes,
+      mood: moodRes,
+      profile: profileRes,
+      water: waterRes,
+    });
+
     const events = (eventsRes.data ?? []).map(rowToEvent);
     const journal = (journalRes.data ?? []).map((r) => ({
       id: r.id,
@@ -132,6 +144,7 @@ export async function loadFromSupabase() {
 export async function saveEventsToSupabase(events) {
   const userId = await ensureSignedIn();
   if (!userId) return false;
+  if (!events?.length) return true;
 
   const rows = events.map((e) => ({
     ...eventToRow(e),
@@ -360,8 +373,8 @@ export async function deleteWaterEntryFromSupabase(waterId) {
  * Save full state to Supabase. Call after any store change.
  */
 export async function saveFullStateToSupabase(state) {
-  if (!isSupabaseConfigured()) return;
-  await Promise.all([
+  if (!isSupabaseConfigured()) return false;
+  const results = await Promise.all([
     saveEventsToSupabase(state.events),
     saveJournalToSupabase(state.journal),
     saveSummariesToSupabase(state.summaries),
@@ -369,4 +382,5 @@ export async function saveFullStateToSupabase(state) {
     saveProfileToSupabase(state.profile),
     saveWaterEntriesToSupabase(state.waterEntries),
   ]);
+  return results.every((result) => result !== false);
 }

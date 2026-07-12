@@ -1,8 +1,10 @@
 import React, { createContext, useContext, useReducer, useEffect, useRef } from 'react';
+import { AppState } from 'react-native';
 import { EVENT_TYPES } from './mockData';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { isSupabaseConfigured } from '../api/supabase';
 import { loadFromSupabase, saveFullStateToSupabase } from '../api/supabaseSync';
+const { mergeHydratedEvents } = require('./eventMerge');
 
 const PROFILE_STORAGE_KEY = '@journalx_profile';
 const INSIGHTS_STORAGE_KEY = '@journalx_insights';
@@ -52,14 +54,13 @@ function storeReducer(state, action) {
           }
         }
       }
-      // Merge events: keep server list but add any local events not yet on server (e.g. sleep just added)
-      // so we don't overwrite and lose them when Supabase load completes after user action.
-      let events = action.payload.events ?? state.events;
-      if (action.payload.events && state.events.length > 0) {
-        const serverIds = new Set(action.payload.events.map((e) => e.id));
-        const localOnly = state.events.filter((e) => !serverIds.has(e.id));
-        events = [...action.payload.events, ...localOnly];
-      }
+      // The initial load merges any event created while hydration was in
+      // flight. A foreground refresh is authoritative: retaining every absent
+      // local row would resurrect events deleted by another trusted client and
+      // the debounced saver would upload them again.
+      const events = mergeHydratedEvents(state.events, action.payload.events, {
+        replace: Boolean(action.payload.replaceEvents),
+      });
 
       return {
         ...state,
@@ -191,8 +192,48 @@ const SAVE_DEBOUNCE_MS = 1500;
 export function StoreProvider({ children }) {
   const [state, dispatch] = useReducer(storeReducer, initialState);
   const saveTimeoutRef = useRef(null);
+  const savePromiseRef = useRef(null);
+  const saveFailedRef = useRef(false);
+  const latestStateRef = useRef(state);
   const isInitialMount = useRef(true);
   const profileLoadedRef = useRef(false);
+  latestStateRef.current = state;
+
+  const queueStateSave = (snapshot) => {
+    const previous = savePromiseRef.current || Promise.resolve(true);
+    const request = previous
+      .catch(() => false)
+      .then(() => saveFullStateToSupabase(snapshot));
+    savePromiseRef.current = request;
+    void request
+      .then(
+        (saved) => {
+          saveFailedRef.current = saved === false;
+        },
+        () => {
+          saveFailedRef.current = true;
+        }
+      )
+      .finally(() => {
+        if (savePromiseRef.current === request) savePromiseRef.current = null;
+      })
+      .catch(() => {});
+    return request;
+  };
+
+  const flushPendingStateSave = async () => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+      queueStateSave(latestStateRef.current);
+    }
+    if (!savePromiseRef.current && saveFailedRef.current) {
+      queueStateSave(latestStateRef.current);
+    }
+    const pending = savePromiseRef.current;
+    if (!pending) return true;
+    return (await pending) !== false;
+  };
 
   // Load from Supabase, profile, insights, water from AsyncStorage on mount
   useEffect(() => {
@@ -253,6 +294,66 @@ export function StoreProvider({ children }) {
       .catch(() => dispatch({ type: 'SET_LOADING', payload: false }));
   }, []);
 
+  // Jarvis and other trusted clients can add rows while LifeSync is in the
+  // background. Refresh silently on a real foreground transition so those
+  // server-side changes become visible without resetting the current screen.
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return undefined;
+
+    let mounted = true;
+    let previousAppState = AppState.currentState;
+    let refreshInFlight = null;
+
+    const refreshFromSupabase = () => {
+      if (refreshInFlight) return refreshInFlight;
+
+      const request = (async () => {
+        // If the user changes anything while the cloud read is running, flush
+        // that newer snapshot and read again before applying an authoritative
+        // replacement. This keeps an in-flight foreground refresh from
+        // discarding a just-created local event.
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          const saved = await flushPendingStateSave();
+          if (!saved) throw new Error('Pending LifeSync changes could not be saved.');
+          const flushedState = latestStateRef.current;
+          const data = await loadFromSupabase();
+          if (!mounted || !data) return;
+          if (latestStateRef.current !== flushedState) continue;
+          dispatch({
+            type: 'HYDRATE',
+            payload: { ...data, replaceEvents: true },
+          });
+          return;
+        }
+        if (mounted) {
+          console.warn('[Supabase] Foreground refresh deferred because local changes are still arriving.');
+        }
+      })()
+        .catch((error) => {
+          console.warn('[Supabase] Foreground refresh failed:', error);
+        })
+        .finally(() => {
+          if (refreshInFlight === request) refreshInFlight = null;
+        });
+
+      refreshInFlight = request;
+      return request;
+    };
+
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      const wasBackgrounded =
+        previousAppState === 'background' || previousAppState === 'inactive';
+      previousAppState = nextState;
+
+      if (wasBackgrounded && nextState === 'active') refreshFromSupabase();
+    });
+
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
+  }, []);
+
   // Debounced save to Supabase on state change (skip initial mount)
   useEffect(() => {
     if (isInitialMount.current) {
@@ -263,12 +364,17 @@ export function StoreProvider({ children }) {
 
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
-      saveFullStateToSupabase(state);
       saveTimeoutRef.current = null;
+      queueStateSave(state).catch((error) => {
+        console.warn('[Supabase] Debounced save failed:', error);
+      });
     }, SAVE_DEBOUNCE_MS);
 
     return () => {
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
+      }
     };
   }, [state.events, state.journal, state.summaries, state.moodEntries, state.profile, state.waterEntries, state.weightLogs]);
 
