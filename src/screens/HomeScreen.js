@@ -20,6 +20,7 @@ import JournalEntry from "../components/Home/JournalEntry";
 import CalorieProteinGoals from "../components/Home/CalorieProteinGoals";
 import WaterTracker from "../components/Home/WaterTracker";
 import RecentEventsList from "../components/Home/RecentEventsList";
+import { FoodCapture, TodayMeals } from "../components/Home/FoodLog";
 import { LiquidGlass, LiquidGlassGroup } from "../components/ui/LiquidGlass";
 import { useTheme } from "../store/ThemeContext";
 
@@ -31,11 +32,11 @@ const TAB_BAR_CLEARANCE = 140;
 function getQuickActions(palette) {
   return [
     {
-      key: "food",
-      label: "Food",
-      icon: "restaurant",
-      tint: palette.green,
-      route: { name: "FoodEvent" },
+      key: "exercise",
+      label: "Exercise",
+      icon: "fitness",
+      tint: palette.orange,
+      route: { name: "ExerciseEvent" },
     },
     {
       key: "water",
@@ -165,6 +166,13 @@ export default function HomeScreen() {
       <Header />
       <WeekStrip />
 
+      <SectionHeader title="Today's Food" />
+      <CalorieProteinGoals animTrigger={animTrigger} loading={summaryLoading} />
+      <FoodCapture />
+      <View style={styles.mealsGap} />
+      <TodayMeals />
+
+      <SectionHeader title="Your Day" />
       <AISummaryCard
         refreshing={refreshing}
         onFetchDone={onFetchDone}
@@ -185,19 +193,6 @@ export default function HomeScreen() {
         }
       />
       <MoodSelector refreshTrigger={animTrigger} loading={summaryLoading} />
-
-      <SectionHeader title="Nutrition" />
-      <Pressable
-        accessibilityRole="button"
-        accessibilityHint="Opens food logging"
-        onPress={() => navigation.navigate("FoodEvent")}
-        style={({ pressed }) => pressed && styles.pressed}
-      >
-        <CalorieProteinGoals
-          animTrigger={animTrigger}
-          loading={summaryLoading}
-        />
-      </Pressable>
 
       <SectionHeader
         title="Water"
@@ -260,6 +255,9 @@ const styles = StyleSheet.create({
     marginHorizontal: SCREEN_MARGIN,
     marginTop: 30,
     marginBottom: 12,
+  },
+  mealsGap: {
+    height: 14,
   },
   quickActions: {
     flexDirection: "row",

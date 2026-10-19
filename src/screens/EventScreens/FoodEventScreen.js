@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -7,18 +7,35 @@ import {
   Pressable,
   StyleSheet,
   ActivityIndicator,
+  Image,
+  ScrollView,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useStore } from '../../store/useStore';
 import { EVENT_TYPES } from '../../store/mockData';
 import { getTimeNow24h } from '../../utils/time';
 import { useTheme } from '../../store/ThemeContext';
-import { extractFood } from '../../api/ai';
+import { extractFood, analyzeFoodPhoto, prepareFoodPhoto } from '../../api/ai';
+import { queueFood, isOnline } from '../../store/pendingFood';
+import pickFoodPhoto from '../../utils/pickFoodPhoto';
 
 const CTA_HEIGHT = 48;
 const CONTROL_RADIUS = 14;
+const PHOTO_HEIGHT = 220;
+const SERVING_STEP = 0.5;
+const MACROS = [
+  { key: 'calories', label: 'Calories' },
+  { key: 'protein', label: 'Protein (g)' },
+  { key: 'carbs', label: 'Carbs (g)' },
+  { key: 'fat', label: 'Fat (g)' },
+];
+const SOURCE_LABELS = {
+  label: 'Read from label',
+  brand: 'Known product',
+  estimate: 'Estimated from photo',
+};
 
 function formatDateKey(d) {
   const y = d.getFullYear();
@@ -31,71 +48,126 @@ function generateId() {
   return 'e_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
 }
 
+function toFields(data) {
+  return Object.fromEntries(MACROS.map(({ key }) => [key, String(data[key] ?? 0)]));
+}
+
 export default function FoodEventScreen() {
   const navigation = useNavigation();
+  const route = useRoute();
   const insets = useSafeAreaInsets();
   const { palette, text } = useTheme();
   const { dispatch } = useStore();
 
+  const [photoUri, setPhotoUri] = useState(route.params?.photoUri ?? null);
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
-  const [extracted, setExtracted] = useState(null);
-  const [calories, setCalories] = useState('');
-  const [protein, setProtein] = useState('');
-  const [carbs, setCarbs] = useState('');
-  const [saved, setSaved] = useState(false);
+  const [result, setResult] = useState(null); // { portion, source, items }
+  const [fields, setFields] = useState(toFields({}));
+  const [servings, setServings] = useState(1);
+  const [fixNote, setFixNote] = useState('');
   const [error, setError] = useState(null);
+  const requestId = useRef(0);
+  const imageRef = useRef(null); // downscaled base64 of photoUri, reused for re-runs
 
-  const handleSave = async () => {
-    if (saved) {
-      navigation.goBack();
-      return;
-    }
-    if (!description.trim()) return;
-    setLoading(true);
-    setError(null);
-    const result = await extractFood(description.trim());
-    setLoading(false);
-    if (result.ok && result.data) {
-      setExtracted(result.data);
-      setCalories(String(result.data.calories ?? 0));
-      setProtein(String(result.data.protein ?? 0));
-      setCarbs(String(result.data.carbs ?? 0));
-      if (result.data.description) setDescription(result.data.description);
-    } else {
-      setError(result.error || 'Could not get macros');
-      setExtracted({ calories: 0, protein: 0, carbs: 0 });
-      setCalories('');
-      setProtein('');
-      setCarbs('');
-    }
+  // No internet: keep the meal and estimate it automatically once back online.
+  const saveForLater = (entry) => {
+    queueFood({ ...entry, date: formatDateKey(new Date()), time: getTimeNow24h() });
+    navigation.goBack();
   };
 
-  const handleFinalSave = () => {
-    const date = formatDateKey(new Date());
+  const applyResult = (data) => {
+    setResult({ portion: data.portion ?? '', source: data.source, items: data.items ?? [] });
+    setFields(toFields(data));
+    setServings(1);
+    if (data.description) setDescription(data.description);
+  };
+
+  const runPhoto = async (uri, note) => {
+    const id = ++requestId.current;
+    setLoading(true);
+    setError(null);
+    try {
+      if (!imageRef.current || imageRef.current.uri !== uri) {
+        imageRef.current = { uri, image: await prepareFoodPhoto(uri) };
+      }
+    } catch {
+      setLoading(false);
+      setError('Could not read that photo');
+      return;
+    }
+    const { image } = imageRef.current;
+    if (!note && !(await isOnline())) return saveForLater({ image });
+    const res = await analyzeFoodPhoto(image, note);
+    if (id !== requestId.current) return; // a newer photo replaced this one
+    if (res.offline && !note) return saveForLater({ image });
+    setLoading(false);
+    if (res.ok) applyResult(res.data);
+    else setError(res.error || 'Could not analyze photo');
+  };
+
+  useEffect(() => {
+    if (photoUri) runPhoto(photoUri);
+    // Only when a new photo arrives; re-runs with a note go through runPhoto directly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photoUri]);
+
+  const handlePick = async (source) => {
+    const uri = await pickFoodPhoto(source);
+    if (!uri) return;
+    setResult(null);
+    setFixNote('');
+    setPhotoUri(uri);
+  };
+
+  const handleEstimateText = async () => {
+    const text = description.trim();
+    if (!text) return;
+    if (!(await isOnline())) return saveForLater({ text });
+    setLoading(true);
+    setError(null);
+    const res = await extractFood(text);
+    if (res.offline) return saveForLater({ text });
+    setLoading(false);
+    if (res.ok && res.data) applyResult(res.data);
+    else setError(res.error || 'Could not get macros');
+  };
+
+  const handleReset = () => {
+    requestId.current++;
+    setPhotoUri(null);
+    setResult(null);
+    setDescription('');
+    setFixNote('');
+    setError(null);
+    setLoading(false);
+  };
+
+  const scaled = (key) => Math.round((parseInt(fields[key], 10) || 0) * servings);
+
+  const handleSave = () => {
+    const portion = result?.portion
+      ? `${result.portion}${servings !== 1 ? ` × ${servings}` : ''}`
+      : undefined;
     dispatch({
       type: 'ADD_EVENT',
       payload: {
         id: generateId(),
         type: EVENT_TYPES.food,
-        date,
+        date: formatDateKey(new Date()),
         time: getTimeNow24h(),
-        description: description.trim(),
-        calories: parseInt(calories, 10) || 0,
-        protein: parseInt(protein, 10) || 0,
-        carbs: parseInt(carbs, 10) || 0,
+        description: description.trim() || 'Meal',
+        calories: scaled('calories'),
+        protein: scaled('protein'),
+        carbs: scaled('carbs'),
+        fat: scaled('fat'),
+        note: portion,
       },
     });
-    setSaved(true);
     navigation.goBack();
   };
 
-  const saveDisabled = loading || !description.trim();
-  const inputStyle = [
-    text.body,
-    styles.input,
-    { backgroundColor: palette.fill },
-  ];
+  const inputStyle = [text.body, styles.input, { backgroundColor: palette.fill }];
 
   return (
     <View
@@ -116,75 +188,181 @@ export default function FoodEventScreen() {
         </Pressable>
         <Text style={text.title2}>log food.</Text>
       </View>
-      <View style={styles.content}>
-        <Text style={[text.eyebrow, styles.label]}>
-          {'What did you eat?'.toUpperCase()}
-        </Text>
-        <TextInput
-          style={inputStyle}
-          placeholder="e.g. Oatmeal with banana"
-          placeholderTextColor={palette.tertiaryLabel}
-          value={description}
-          onChangeText={setDescription}
-          editable={!extracted}
-        />
-        {loading && (
-          <View style={styles.loadingRow}>
-            <ActivityIndicator color={palette.tint} />
-            <Text style={text.footnote}>Extracting nutrition…</Text>
+
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {photoUri ? (
+          <View style={styles.photoWrap}>
+            <Image source={{ uri: photoUri }} style={styles.photo} />
+            {loading && (
+              <View style={styles.photoOverlay}>
+                <ActivityIndicator color="#FFFFFF" size="large" />
+                <Text style={[text.subheadline, styles.overlayText]}>
+                  Reading label & sizing portion…
+                </Text>
+              </View>
+            )}
           </View>
-        )}
-        {error ? (
-          <Text style={[text.footnote, styles.errorText, { color: palette.red }]}>
-            {error}
-          </Text>
         ) : null}
-        {extracted && !loading && (
-          <View style={styles.nutrients}>
-            <Text style={[text.eyebrow, styles.label]}>
-              {'Calories'.toUpperCase()}
-            </Text>
+
+        {!photoUri && !result && (
+          <>
+            <View style={styles.pickRow}>
+              {[
+                { source: 'camera', icon: 'camera', label: 'Take photo' },
+                { source: 'library', icon: 'images', label: 'Upload' },
+              ].map((b) => (
+                <Pressable
+                  key={b.source}
+                  accessibilityRole="button"
+                  onPress={() => handlePick(b.source)}
+                  style={({ pressed }) => [
+                    styles.pickTile,
+                    { backgroundColor: palette.card },
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Ionicons name={b.icon} size={28} color={palette.green} />
+                  <Text style={text.subheadline}>{b.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={[text.eyebrow, styles.label]}>{'Or describe it'.toUpperCase()}</Text>
             <TextInput
               style={inputStyle}
-              value={calories}
-              onChangeText={setCalories}
-              keyboardType="number-pad"
+              placeholder="e.g. Oatmeal with banana"
+              placeholderTextColor={palette.tertiaryLabel}
+              value={description}
+              onChangeText={setDescription}
+              returnKeyType="go"
+              onSubmitEditing={handleEstimateText}
             />
-            <Text style={[text.eyebrow, styles.label]}>
-              {'Protein (g)'.toUpperCase()}
-            </Text>
-            <TextInput
-              style={inputStyle}
-              value={protein}
-              onChangeText={setProtein}
-              keyboardType="number-pad"
-            />
-            <Text style={[text.eyebrow, styles.label]}>
-              {'Carbs (g)'.toUpperCase()}
-            </Text>
-            <TextInput
-              style={inputStyle}
-              value={carbs}
-              onChangeText={setCarbs}
-              keyboardType="number-pad"
-            />
-          </View>
+            {loading && (
+              <View style={styles.loadingRow}>
+                <ActivityIndicator color={palette.tint} />
+                <Text style={text.footnote}>Estimating nutrition…</Text>
+              </View>
+            )}
+          </>
         )}
-        <TouchableOpacity
-          accessibilityRole="button"
-          style={[
-            styles.saveButton,
-            { backgroundColor: palette.label },
-            saveDisabled && styles.disabled,
-          ]}
-          onPress={extracted ? handleFinalSave : handleSave}
-          disabled={saveDisabled}
-        >
-          <Text style={[text.headline, { color: palette.background }]}>
-            {extracted ? 'Save' : 'Extract & Save'}
-          </Text>
-        </TouchableOpacity>
-      </View>
+
+        {error ? (
+          <Text style={[text.footnote, styles.errorText, { color: palette.red }]}>{error}</Text>
+        ) : null}
+
+        {result && !loading && (
+          <>
+            <TextInput
+              style={[text.title3, styles.nameInput]}
+              value={description}
+              onChangeText={setDescription}
+              placeholder="Meal name"
+              placeholderTextColor={palette.tertiaryLabel}
+            />
+            <View style={styles.metaRow}>
+              {result.portion ? <Text style={text.footnote}>{result.portion}</Text> : null}
+              {SOURCE_LABELS[result.source] ? (
+                <View style={[styles.chip, { backgroundColor: palette.fill }]}>
+                  <Text style={text.caption}>{SOURCE_LABELS[result.source]}</Text>
+                </View>
+              ) : null}
+            </View>
+
+            {result.items.length > 1 &&
+              result.items.map((item, i) => (
+                <View key={`${item.name}-${i}`} style={styles.itemRow}>
+                  <Text style={[text.footnote, styles.itemName]} numberOfLines={1}>
+                    {item.name} · {item.portion}
+                  </Text>
+                  <Text style={text.footnote}>{item.calories} cal</Text>
+                </View>
+              ))}
+
+            <View style={styles.servingsRow}>
+              <Text style={text.eyebrow}>{'Servings'.toUpperCase()}</Text>
+              <View style={styles.stepper}>
+                <Pressable
+                  accessibilityLabel="Fewer servings"
+                  hitSlop={8}
+                  onPress={() => setServings((s) => Math.max(SERVING_STEP, s - SERVING_STEP))}
+                >
+                  <Ionicons name="remove-circle" size={30} color={palette.secondaryLabel} />
+                </Pressable>
+                <Text style={[text.headline, styles.servingsValue]}>{servings}</Text>
+                <Pressable
+                  accessibilityLabel="More servings"
+                  hitSlop={8}
+                  onPress={() => setServings((s) => s + SERVING_STEP)}
+                >
+                  <Ionicons name="add-circle" size={30} color={palette.green} />
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={styles.macroGrid}>
+              {MACROS.map(({ key, label }) => (
+                <View key={key} style={styles.macroCell}>
+                  <Text style={[text.eyebrow, styles.label]}>{label.toUpperCase()}</Text>
+                  <TextInput
+                    style={inputStyle}
+                    value={servings === 1 ? fields[key] : String(scaled(key))}
+                    onChangeText={(v) => setFields((f) => ({ ...f, [key]: v }))}
+                    editable={servings === 1}
+                    keyboardType="number-pad"
+                  />
+                </View>
+              ))}
+            </View>
+
+            {photoUri ? (
+              <View style={styles.fixRow}>
+                <TextInput
+                  style={[text.subheadline, styles.input, styles.fixInput, { backgroundColor: palette.fill }]}
+                  placeholder="Something off? e.g. it was a large"
+                  placeholderTextColor={palette.tertiaryLabel}
+                  value={fixNote}
+                  onChangeText={setFixNote}
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Re-analyze with note"
+                  disabled={!fixNote.trim()}
+                  onPress={() => runPhoto(photoUri, fixNote.trim())}
+                  style={({ pressed }) => [(pressed || !fixNote.trim()) && styles.pressed]}
+                >
+                  <Ionicons name="refresh-circle" size={40} color={palette.tint} />
+                </Pressable>
+              </View>
+            ) : null}
+          </>
+        )}
+
+        {(result || (!photoUri && !loading)) && (
+          <TouchableOpacity
+            accessibilityRole="button"
+            style={[
+              styles.saveButton,
+              { backgroundColor: palette.label },
+              !result && !description.trim() && styles.disabled,
+            ]}
+            onPress={result ? handleSave : handleEstimateText}
+            disabled={!result && !description.trim()}
+          >
+            <Text style={[text.headline, { color: palette.background }]}>
+              {result ? 'Save' : 'Estimate'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {(result || error) && (
+          <Pressable accessibilityRole="button" onPress={handleReset} style={styles.resetLink}>
+            <Text style={[text.subheadline, { color: palette.tint }]}>Start over</Text>
+          </Pressable>
+        )}
+      </ScrollView>
     </View>
   );
 }
@@ -198,10 +376,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginBottom: 24,
-  },
-  content: {
-    flex: 1,
+    marginBottom: 20,
   },
   label: {
     marginBottom: 8,
@@ -210,31 +385,123 @@ const styles = StyleSheet.create({
     borderRadius: CONTROL_RADIUS,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    marginBottom: 20,
+    marginBottom: 16,
+  },
+  photoWrap: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  photo: {
+    width: '100%',
+    height: PHOTO_HEIGHT,
+  },
+  photoOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  overlayText: {
+    color: '#FFFFFF',
+  },
+  pickRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 28,
+  },
+  pickTile: {
+    flex: 1,
+    height: 120,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
   },
   loadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   errorText: {
     marginBottom: 12,
   },
-  nutrients: {
+  nameInput: {
+    paddingVertical: 4,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
+    marginBottom: 12,
+  },
+  chip: {
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  itemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
     marginBottom: 4,
+  },
+  itemName: {
+    flex: 1,
+  },
+  servingsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    marginBottom: 16,
+  },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  servingsValue: {
+    minWidth: 32,
+    textAlign: 'center',
+  },
+  macroGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: 12,
+  },
+  macroCell: {
+    width: '47%',
+    flexGrow: 1,
+  },
+  fixRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  fixInput: {
+    flex: 1,
+    marginBottom: 0,
   },
   saveButton: {
     height: CTA_HEIGHT,
     borderRadius: CTA_HEIGHT / 2,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 16,
+    marginTop: 20,
+  },
+  resetLink: {
+    alignItems: 'center',
+    paddingVertical: 14,
   },
   disabled: {
     opacity: 0.45,
   },
   pressed: {
-    opacity: 0.7,
+    opacity: 0.5,
   },
 });

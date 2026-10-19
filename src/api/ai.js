@@ -1,3 +1,4 @@
+import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import { AI } from "./config";
 import { getAuthHeaders } from "./supabase";
 
@@ -55,7 +56,75 @@ export async function extractFood(text) {
   } catch (err) {
     clearTimeout(timeout);
     const message = err?.message || "Network error";
-    return { ok: false, error: message };
+    return { ok: false, offline: true, error: message };
+  }
+}
+
+const PHOTO_TIMEOUT_MS = 30000;
+const PHOTO_MAX_WIDTH = 1024;
+
+/**
+ * Downscale a picked photo to a small JPEG (base64) so upload + model time
+ * stay short and it can sit in the offline queue.
+ * @param {string} uri - local image uri from the camera or photo library
+ * @returns {Promise<string>} base64 JPEG
+ */
+export async function prepareFoodPhoto(uri) {
+  const rendered = await ImageManipulator.manipulate(uri)
+    .resize({ width: PHOTO_MAX_WIDTH })
+    .renderAsync();
+  const { base64 } = await rendered.saveAsync({
+    format: SaveFormat.JPEG,
+    compress: 0.7,
+    base64: true,
+  });
+  return base64;
+}
+
+/**
+ * Send a food photo to the backend (Claude vision): reads nutrition labels,
+ * recognizes products, estimates portion size.
+ *
+ * @param {string} image - base64 JPEG from prepareFoodPhoto
+ * @param {string} [note] - optional hint, e.g. "ate half"
+ * @returns {Promise<{ ok: boolean, data?: { description, portion, source, items, calories, protein, carbs, fat }, error?: string, offline?: boolean }>}
+ *   offline: the request never got an answer (no connection / timeout) — safe to retry later.
+ */
+export async function analyzeFoodPhoto(image, note) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), PHOTO_TIMEOUT_MS);
+  try {
+    const res = await fetch(AI.foodPhoto, {
+      method: "POST",
+      headers: await getAuthHeaders(),
+      body: JSON.stringify({ image, note }),
+      signal: controller.signal,
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      return { ok: false, error: json?.error || res.statusText || "Request failed" };
+    }
+    const d = json?.data;
+    if (!d || d.is_food === false) {
+      return { ok: false, error: "No food found in that photo. Try again closer up." };
+    }
+    return {
+      ok: true,
+      data: {
+        ...normalizeFoodData({ ...d, description: d.name }),
+        portion: typeof d.portion === "string" ? d.portion : "",
+        source: d.source,
+        items: Array.isArray(d.items) ? d.items : [],
+      },
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      offline: true,
+      error: err?.name === "AbortError" ? "Took too long. Check your connection." : err?.message || "Network error",
+    };
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

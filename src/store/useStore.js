@@ -2,6 +2,7 @@ import React, { createContext, useContext, useReducer, useEffect, useRef } from 
 import { AppState } from 'react-native';
 import { EVENT_TYPES } from './mockData';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { startPendingFoodSync } from './pendingFood';
 import { isSupabaseConfigured } from '../api/supabase';
 import { loadFromSupabase, saveFullStateToSupabase } from '../api/supabaseSync';
 const { mergeHydratedEvents } = require('./eventMerge');
@@ -234,6 +235,9 @@ export function StoreProvider({ children }) {
     if (!pending) return true;
     return (await pending) !== false;
   };
+
+  // Meals logged offline get estimated + added once we're back online.
+  useEffect(() => startPendingFoodSync(dispatch), []);
 
   // Load from Supabase, profile, insights, water from AsyncStorage on mount
   useEffect(() => {

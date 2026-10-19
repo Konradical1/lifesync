@@ -45,6 +45,14 @@
           "icon": "./assets/AppLogo2.jpg",
           "color": "#0D1117"
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "LifeSync uses the camera to snap your meals and estimate their nutrition.",
+          "photosPermission": "LifeSync reads food photos you pick to estimate their nutrition.",
+          "microphonePermission": false
+        }
       ]
     ]
   }
