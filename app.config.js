@@ -25,7 +25,7 @@ const hasPngIcon = fs.existsSync(path.join(__dirname, 'assets', 'icon.png'));
 module.exports = ({ config }) => {
   const icon = hasPngIcon ? pngIcon : config.icon;
   const googleIosUrlScheme = process.env.GOOGLE_IOS_URL_SCHEME || '';
-  const plugins = [...(config.plugins || [])];
+  const plugins = [...(config.plugins || []), './plugins/withSceneDelegate'];
 
   if (googleIosUrlScheme) {
     plugins.push([

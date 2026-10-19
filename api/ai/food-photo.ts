@@ -7,6 +7,8 @@ const MODEL = "claude-opus-5-5";
 // App resizes to ~1024px JPEG (~150 KB base64); Vercel caps bodies at 4.5 MB.
 const MAX_IMAGE_CHARS = 3_000_000;
 const MAX_NOTE_CHARS = 300;
+// Each scan is a paid Claude call on the owner's key; caps a user's daily spend.
+const DAILY_SCANS = 25;
 
 const client = new Anthropic({ timeout: 25_000, maxRetries: 1 });
 
@@ -59,7 +61,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const userId = await requireUser(req, res);
+  const userId = await requireUser(req, res, { key: "food_photo", max: DAILY_SCANS });
   if (!userId) return;
 
   if (!process.env.ANTHROPIC_API_KEY) {

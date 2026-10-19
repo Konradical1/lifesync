@@ -9,9 +9,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 TEAM=${TEAM:-U7S5RJB5A5}   # Konrad Fischer (Personal Team)
-UDID=${UDID:-$(xcrun devicectl list devices --json-output /dev/stdout 2>/dev/null \
-  | python3 -c "import sys,json; d=[x for x in json.load(sys.stdin)['result']['devices'] if x['hardwareProperties'].get('deviceType')=='iPhone' and x['connectionProperties'].get('tunnelState')!='unavailable']; print(d[0]['hardwareProperties']['udid'] if d else '')")}
-[[ -n "$UDID" ]] || { echo "No iPhone found. Plug it in, unlock it, trust this Mac."; exit 1; }
+# Call CoreDevice's devicectl directly: Xcode's wrapper insists on a sudo
+# `xcodebuild -runFirstLaunch` whenever CoreDevice is a version behind.
+DEVICECTL=/Library/Developer/PrivateFrameworks/CoreDevice.framework/Versions/A/Resources/bin/devicectl
 
 npx expo prebuild -p ios --clean
 
@@ -22,11 +22,15 @@ ENT=ios/LifeSync/LifeSync.entitlements
 
 # IPHONEOS_DEPLOYMENT_TARGET: Xcode 27 rejects pods that still target iOS < 15.
 xcodebuild -workspace ios/LifeSync.xcworkspace -scheme LifeSync \
-  -configuration Release -destination "id=$UDID" -derivedDataPath ios/build \
+  -configuration Release -destination generic/platform=iOS -derivedDataPath ios/build \
   -allowProvisioningUpdates DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic \
   IPHONEOS_DEPLOYMENT_TARGET=15.1 \
   build | tail -20
 
-xcrun devicectl device install app --device "$UDID" \
+until UDID=${UDID:-$("$DEVICECTL" list devices --json-output /dev/stdout 2>/dev/null \
+  | python3 -c "import sys,json; d=[x for x in json.load(sys.stdin)['result']['devices'] if x['hardwareProperties'].get('deviceType')=='iPhone' and x['connectionProperties'].get('tunnelState') not in (None,'unavailable')]; print(d[0]['hardwareProperties']['udid'] if d else '')")}; [[ -n "$UDID" ]]; do
+  echo "Waiting for iPhone: plug it in (or same Wi-Fi), unlock it, trust this Mac..."; sleep 5
+done
+"$DEVICECTL" device install app --device "$UDID" \
   ios/build/Build/Products/Release-iphoneos/LifeSync.app
 echo "Installed. First launch: Settings > General > VPN & Device Management > trust the developer."

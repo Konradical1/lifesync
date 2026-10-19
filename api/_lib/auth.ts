@@ -15,13 +15,17 @@ const RATE_LIMIT_WINDOW_MS = 60_000;
 // paid AI endpoints without a datastore.
 const requestLog = new Map<string, number[]>();
 
+/** Per-user daily cap, counted in app_metadata[`${key}_quota`] = { day, n }. */
+type DailyLimit = { key: string; max: number };
+
 /**
  * Returns the authenticated user's id, or null after writing an error
  * response. Callers must `return` when null is returned.
  */
 export async function requireUser(
   req: VercelRequest,
-  res: VercelResponse
+  res: VercelResponse,
+  daily?: DailyLimit
 ): Promise<string | null> {
   if (!supabaseUrl || !supabaseServiceKey) {
     console.error("SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not set");
@@ -56,6 +60,24 @@ export async function requireUser(
   }
   recent.push(now);
   requestLog.set(userId, recent);
+
+  if (daily) {
+    const field = `${daily.key}_quota`;
+    const today = new Date().toISOString().slice(0, 10); // resets at midnight UTC
+    const prev = data.user.app_metadata?.[field];
+    const used = prev?.day === today ? Number(prev.n) || 0 : 0;
+    if (used >= daily.max) {
+      res.status(429).json({
+        error: `That's all ${daily.max} scans for today. Type it in instead, or snap again tomorrow.`,
+      });
+      return null;
+    }
+    // ponytail: read-then-write, so parallel requests can slip one or two past the cap. Fine for cost control.
+    const { error: quotaError } = await supabase.auth.admin.updateUserById(userId, {
+      app_metadata: { [field]: { day: today, n: used + 1 } },
+    });
+    if (quotaError) console.error("Daily quota update failed:", quotaError.message);
+  }
 
   return userId;
 }

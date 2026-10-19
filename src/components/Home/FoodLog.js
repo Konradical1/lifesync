@@ -1,5 +1,15 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet, Image } from 'react-native';
+import Animated, {
+  Easing,
+  FadeInDown,
+  LinearTransition,
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useEvents } from '../../store/useStore';
@@ -8,6 +18,7 @@ import { formatTime12h } from '../../utils/time';
 import { useTheme } from '../../store/ThemeContext';
 import pickFoodPhoto from '../../utils/pickFoodPhoto';
 import { usePendingFood, removePending } from '../../store/pendingFood';
+import { foodStreak } from '../Food/FoodScan';
 import Card from '../ui/Card';
 
 const SCREEN_MARGIN = 20;
@@ -21,6 +32,17 @@ function todayKey() {
 export function FoodCapture() {
   const navigation = useNavigation();
   const { palette, text } = useTheme();
+  const streak = foodStreak(useEvents(), todayKey());
+
+  // Slow "breathing" glow behind the snap button, inviting the next scan.
+  const glow = useSharedValue(0);
+  useEffect(() => {
+    glow.value = withRepeat(withTiming(1, { duration: 1800, easing: Easing.out(Easing.quad) }), -1);
+  }, [glow]);
+  const glowStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(glow.value, [0, 1], [0.45, 0]),
+    transform: [{ scaleX: interpolate(glow.value, [0, 1], [1, 1.06]) }, { scaleY: interpolate(glow.value, [0, 1], [1, 1.3]) }],
+  }));
 
   const pick = async (source) => {
     const photoUri = await pickFoodPhoto(source);
@@ -29,19 +51,30 @@ export function FoodCapture() {
 
   return (
     <View style={styles.captureRow}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Take a photo of your food"
-        onPress={() => pick('camera')}
-        style={({ pressed }) => [
-          styles.snapButton,
-          { backgroundColor: palette.green },
-          pressed && styles.pressed,
-        ]}
-      >
-        <Ionicons name="camera" size={26} color="#FFFFFF" />
-        <Text style={[text.headline, styles.snapLabel]}>Snap a meal</Text>
-      </Pressable>
+      <View style={styles.snapWrap}>
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.snapButton, styles.snapGlow, { backgroundColor: palette.green }, glowStyle]}
+        />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Take a photo of your food"
+          onPress={() => pick('camera')}
+          style={({ pressed }) => [
+            styles.snapButton,
+            { backgroundColor: palette.green },
+            pressed && styles.snapPressed,
+          ]}
+        >
+          <Ionicons name="camera" size={26} color="#FFFFFF" />
+          <View>
+            <Text style={[text.headline, styles.snapLabel]}>Snap a meal</Text>
+            <Text style={[text.caption, styles.snapStreak]}>
+              {streak ? `🔥 ${streak}-day streak` : 'Start a streak today'}
+            </Text>
+          </View>
+        </Pressable>
+      </View>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Upload a food photo"
@@ -140,41 +173,42 @@ export function TodayMeals() {
       </View>
       <PendingRows />
       {meals.map((meal, i) => (
-        <Pressable
-          key={meal.id}
-          accessibilityRole="button"
-          accessibilityLabel={`${meal.description}, ${meal.calories || 0} calories`}
-          onPress={() =>
-            navigation.navigate('CalendarTab', {
-              screen: 'Calendar',
-              params: { focusDate: meal.date, focusEventId: meal.id },
-            })
-          }
-          style={({ pressed }) => [
-            styles.row,
-            i < meals.length - 1 && {
-              borderBottomWidth: StyleSheet.hairlineWidth,
-              borderBottomColor: palette.separator,
-            },
-            pressed && { backgroundColor: palette.cardElevated },
-          ]}
-        >
-          <View style={styles.rowText}>
-            <Text style={text.subheadline} numberOfLines={1}>
-              {meal.description || 'Meal'}
-            </Text>
-            <Text style={text.footnote} numberOfLines={1}>
-              {formatTime12h(meal.time)}
-              {meal.note ? ` · ${meal.note}` : ''}
-            </Text>
-          </View>
-          <View style={styles.rowRight}>
-            <Text style={text.headline}>{meal.calories || 0}</Text>
-            <Text style={text.caption}>
-              {meal.protein || 0}p · {meal.carbs || 0}c · {meal.fat || 0}f
-            </Text>
-          </View>
-        </Pressable>
+        <Animated.View key={meal.id} entering={FadeInDown.springify()} layout={LinearTransition.springify()}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${meal.description}, ${meal.calories || 0} calories`}
+            onPress={() =>
+              navigation.navigate('CalendarTab', {
+                screen: 'Calendar',
+                params: { focusDate: meal.date, focusEventId: meal.id },
+              })
+            }
+            style={({ pressed }) => [
+              styles.row,
+              i < meals.length - 1 && {
+                borderBottomWidth: StyleSheet.hairlineWidth,
+                borderBottomColor: palette.separator,
+              },
+              pressed && { backgroundColor: palette.cardElevated },
+            ]}
+          >
+            <View style={styles.rowText}>
+              <Text style={text.subheadline} numberOfLines={1}>
+                {meal.description || 'Meal'}
+              </Text>
+              <Text style={text.footnote} numberOfLines={1}>
+                {formatTime12h(meal.time)}
+                {meal.note ? ` · ${meal.note}` : ''}
+              </Text>
+            </View>
+            <View style={styles.rowRight}>
+              <Text style={text.headline}>{meal.calories || 0}</Text>
+              <Text style={text.caption}>
+                {meal.protein || 0}p · {meal.carbs || 0}c · {meal.fat || 0}f
+              </Text>
+            </View>
+          </Pressable>
+        </Animated.View>
       ))}
     </Card>
   );
@@ -187,17 +221,28 @@ const styles = StyleSheet.create({
     marginHorizontal: SCREEN_MARGIN,
     marginTop: 14,
   },
-  snapButton: {
+  snapWrap: {
     flex: 1,
+  },
+  snapButton: {
     height: 60,
     borderRadius: 30,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
+    gap: 12,
+  },
+  snapGlow: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  snapPressed: {
+    transform: [{ scale: 0.96 }],
   },
   snapLabel: {
     color: '#FFFFFF',
+  },
+  snapStreak: {
+    color: 'rgba(255,255,255,0.85)',
   },
   smallButton: {
     width: 60,
