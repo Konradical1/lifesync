@@ -6,6 +6,7 @@ import { startPendingFoodSync } from './pendingFood';
 import { isSupabaseConfigured } from '../api/supabase';
 import { loadFromSupabase, saveFullStateToSupabase } from '../api/supabaseSync';
 const { mergeHydratedEvents } = require('./eventMerge');
+const { dayTotals } = require('../utils/nutrition');
 
 const PROFILE_STORAGE_KEY = '@journalx_profile';
 const INSIGHTS_STORAGE_KEY = '@journalx_insights';
@@ -32,6 +33,12 @@ const initialState = {
     calorieGoal: '',
     proteinGoal: '',
     waterGoalOz: '',
+    goalType: 'gain',
+    sex: '',
+    activity: '',
+    carbGoal: '',
+    fatGoal: '',
+    fiberGoal: '',
   },
   waterEntries: [], // { id, date (YYYY-MM-DD), time (HH:mm), oz, createdAt }
   weightLogs: [], // { id, weight (string, lbs number), date (YYYY-MM-DD), createdAt } — newest first
@@ -73,7 +80,9 @@ function storeReducer(state, action) {
         profile: action.payload.profile != null ? { ...state.profile, ...action.payload.profile } : state.profile,
         waterEntries: action.payload.waterEntries ?? state.waterEntries,
         weightLogs: action.payload.weightLogs ?? state.weightLogs,
-        loading: false,
+        // Only the Supabase load (it carries events) ends loading; the quick local
+        // profile hydrate must not, or the Today card asks the coach about 0 meals.
+        loading: action.payload.events ? false : state.loading,
       };
     }
     case 'SET_LOADING':
@@ -538,15 +547,11 @@ export function useWeightLogs() {
   return state.weightLogs;
 }
 
-/** Today's total calories and protein from food events. */
-export function useTodayCaloriesAndProtein() {
+/** Today's food events (unsorted) and their summed nutrition. */
+export function useTodayFood() {
   const { state } = useStore();
-  const today = (() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  })();
-  const foodEvents = state.events.filter((e) => e.type === EVENT_TYPES.food && e.date === today);
-  const calories = foodEvents.reduce((sum, e) => sum + (Number(e.calories) || 0), 0);
-  const protein = foodEvents.reduce((sum, e) => sum + (Number(e.protein) || 0), 0);
-  return { calories, protein };
+  const d = new Date();
+  const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const meals = state.events.filter((e) => e.type === EVENT_TYPES.food && e.date === date);
+  return { date, meals, totals: dayTotals(meals) };
 }

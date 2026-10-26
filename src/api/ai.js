@@ -1,66 +1,9 @@
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import { AI } from "./config";
 import { getAuthHeaders } from "./supabase";
+const { foodFields } = require("../utils/nutrition");
 
 const EXTRACT_TIMEOUT_MS = 8000;
-
-/**
- * Call the backend to extract food description + macros (calories, protein, carbs, fat) from free text.
- * Used for the food calorie/macro AI flow.
- *
- * @param {string} text - User input, e.g. "Oatmeal with banana and honey"
- * @returns {Promise<{ ok: boolean, data?: { description?, calories, protein, carbs, fat }, raw?: string, error?: string }>}
- */
-export async function extractFood(text) {
-  const trimmed = typeof text === "string" ? text.trim() : "";
-  if (!trimmed) {
-    return { ok: false, error: "Empty text" };
-  }
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), EXTRACT_TIMEOUT_MS);
-
-  try {
-    const res = await fetch(AI.extract, {
-      method: "POST",
-      headers: await getAuthHeaders(),
-      body: JSON.stringify({ type: "food", text: trimmed }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-
-    const json = await res.json();
-
-    if (!res.ok) {
-      return {
-        ok: false,
-        error: json?.error || res.statusText || "Request failed",
-      };
-    }
-
-    if (json.ok && json.data) {
-      return {
-        ok: true,
-        data: normalizeFoodData(json.data),
-      };
-    }
-    if (json.raw) {
-      try {
-        const parsed = JSON.parse(json.raw);
-        return { ok: true, data: normalizeFoodData(parsed) };
-      } catch {
-        return { ok: false, error: "Invalid AI response" };
-      }
-    }
-    return { ok: false, error: "Invalid response shape" };
-  } catch (err) {
-    clearTimeout(timeout);
-    const message = err?.message || "Network error";
-    return { ok: false, offline: true, error: message };
-  }
-}
-
-const PHOTO_TIMEOUT_MS = 30000;
 const PHOTO_MAX_WIDTH = 1024;
 
 /**
@@ -81,42 +24,39 @@ export async function prepareFoodPhoto(uri) {
   return base64;
 }
 
+// Longer than the API's 30 s maxDuration (vercel.json), so the server answers
+// first and a timeout here means the connection stalled, not the AI.
+const FOOD_TIMEOUT_MS = 40000;
+const IDEA_TIMEOUT_MS = 20000;
+
 /**
- * Send a food photo to the backend (Claude vision): reads nutrition labels,
- * recognizes products, estimates portion size.
+ * Estimate a meal with the food AI: a photo, a typed meal, or a correction of
+ * an earlier estimate ({ previous, note }). Resolves to food event fields.
  *
- * @param {string} image - base64 JPEG from prepareFoodPhoto
- * @param {string} [note] - optional hint, e.g. "ate half"
- * @returns {Promise<{ ok: boolean, data?: { description, portion, source, items, calories, protein, carbs, fat }, error?: string, offline?: boolean }>}
+ * @param {{ image?: string, text?: string, note?: string, goal?: 'gain'|'maintain'|'lose', previous?: { name: string, portion: string, items: Array<{ name: string, portion: string, calories: number }> } }} input
+ * @returns {Promise<{ ok: true, data: { description: string, note?: string, calories: number, protein: number, carbs: number, fat: number, nutrition: object } } | { ok: false, error: string, offline?: boolean }>}
  *   offline: the request never got an answer (no connection / timeout) — safe to retry later.
  */
-export async function analyzeFoodPhoto(image, note) {
+export async function analyzeFood(input) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), PHOTO_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), FOOD_TIMEOUT_MS);
   try {
     const res = await fetch(AI.foodPhoto, {
       method: "POST",
       headers: await getAuthHeaders(),
-      body: JSON.stringify({ image, note }),
+      body: JSON.stringify(input),
       signal: controller.signal,
     });
-    const json = await res.json();
-    if (!res.ok) {
-      return { ok: false, error: json?.error || res.statusText || "Request failed" };
+    // Any answer, even a platform error page, is an error with Retry, never
+    // offline: the queue auto-retries offline items and every try uses quota.
+    const json = await res.json().catch(() => null);
+    if (!res.ok || !json) {
+      return { ok: false, error: typeof json?.error === "string" ? json.error : "AI is unavailable, try again later" };
     }
-    const d = json?.data;
-    if (!d || d.is_food === false) {
-      return { ok: false, error: "No food found in that photo. Try again closer up." };
+    if (!json.data || json.data.is_food === false) {
+      return { ok: false, error: "Couldn't find any food there. Try a closer photo or describe it." };
     }
-    return {
-      ok: true,
-      data: {
-        ...normalizeFoodData({ ...d, description: d.name }),
-        portion: typeof d.portion === "string" ? d.portion : "",
-        source: d.source,
-        items: Array.isArray(d.items) ? d.items : [],
-      },
-    };
+    return { ok: true, data: foodFields(json.data) };
   } catch (err) {
     return {
       ok: false,
@@ -128,16 +68,33 @@ export async function analyzeFoodPhoto(image, note) {
   }
 }
 
-function normalizeFoodData(data) {
-  if (!data || typeof data !== "object") return {};
-  return {
-    description:
-      typeof data.description === "string" ? data.description.trim() : undefined,
-    calories: num(data.calories),
-    protein: num(data.protein),
-    carbs: num(data.carbs),
-    fat: num(data.fat),
-  };
+/**
+ * One short "what to eat next" idea for today from the food coach.
+ * @param {{ goal: string, targets: object, totals: object, meals: Array<{ name: string, calories: number, protein: number, health_score: number|null }>, localTime: string }} payload
+ * @returns {Promise<{ ok: boolean, idea?: string, error?: string }>}
+ */
+export async function getFoodIdea(payload) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), IDEA_TIMEOUT_MS);
+  try {
+    const res = await fetch(AI.foodCoach, {
+      method: "POST",
+      headers: await getAuthHeaders(),
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      return { ok: false, error: json?.error || res.statusText || "Request failed" };
+    }
+    // An empty idea counts as a failure so the card hides the row instead of caching a blank.
+    const idea = typeof json?.idea === "string" ? json.idea.trim() : "";
+    return idea ? { ok: true, idea } : { ok: false, error: "Invalid response shape" };
+  } catch (err) {
+    return { ok: false, error: err?.message || "Network error" };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function num(v) {

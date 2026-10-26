@@ -11,6 +11,8 @@ async function ensureSignedIn() {
   return session?.user?.id ?? null;
 }
 
+const intOrNull = (v) => (v != null && v !== '' ? parseInt(v, 10) : null);
+
 function eventToRow(e) {
   return {
     id: e.id,
@@ -25,6 +27,7 @@ function eventToRow(e) {
     protein: e.protein ?? null,
     carbs: e.carbs ?? null,
     fat: e.fat ?? null,
+    nutrition: e.nutrition ?? null,
     duration: e.duration ?? null,
     name: e.name ?? null,
     dosage: e.dosage ?? null,
@@ -47,6 +50,7 @@ function rowToEvent(row) {
   if (row.protein != null) e.protein = row.protein;
   if (row.carbs != null) e.carbs = row.carbs;
   if (row.fat != null) e.fat = row.fat;
+  if (row.nutrition) e.nutrition = row.nutrition;
   if (row.duration != null) e.duration = row.duration;
   if (row.name) e.name = row.name;
   if (row.dosage != null) e.dosage = row.dosage;
@@ -120,6 +124,12 @@ export async function loadFromSupabase() {
         calorieGoal: p.calorie_goal != null ? String(p.calorie_goal) : '',
         proteinGoal: p.protein_goal != null ? String(p.protein_goal) : '',
         waterGoalOz: p.water_goal_oz != null ? String(p.water_goal_oz) : '',
+        goalType: p.goal_type || 'gain',
+        sex: p.sex ?? '',
+        activity: p.activity ?? '',
+        carbGoal: p.carb_goal != null ? String(p.carb_goal) : '',
+        fatGoal: p.fat_goal != null ? String(p.fat_goal) : '',
+        fiberGoal: p.fiber_goal != null ? String(p.fiber_goal) : '',
       };
     }
 
@@ -309,9 +319,15 @@ export async function saveProfileToSupabase(profile) {
     height: profile.height ?? null,
     weight: profile.weight ?? null,
     medical_conditions: profile.medicalConditions ?? null,
-    calorie_goal: profile.calorieGoal != null && profile.calorieGoal !== '' ? parseInt(profile.calorieGoal, 10) : null,
-    protein_goal: profile.proteinGoal != null && profile.proteinGoal !== '' ? parseInt(profile.proteinGoal, 10) : null,
-    water_goal_oz: profile.waterGoalOz != null && profile.waterGoalOz !== '' ? parseInt(profile.waterGoalOz, 10) : null,
+    calorie_goal: intOrNull(profile.calorieGoal),
+    protein_goal: intOrNull(profile.proteinGoal),
+    water_goal_oz: intOrNull(profile.waterGoalOz),
+    goal_type: profile.goalType || null,
+    sex: profile.sex || null,
+    activity: profile.activity || null,
+    carb_goal: intOrNull(profile.carbGoal),
+    fat_goal: intOrNull(profile.fatGoal),
+    fiber_goal: intOrNull(profile.fiberGoal),
     updated_at: new Date().toISOString(),
   };
 

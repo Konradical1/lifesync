@@ -13,6 +13,7 @@ export const API_BASE_URL =
 export const AI = {
   extract: `${API_BASE_URL}/api/ai/extract`,
   foodPhoto: `${API_BASE_URL}/api/ai/food-photo`,
+  foodCoach: `${API_BASE_URL}/api/ai/food-coach`,
   summary: `${API_BASE_URL}/api/ai/summary`,
   summaryShort: `${API_BASE_URL}/api/ai/summary-short`,
   insights: `${API_BASE_URL}/api/ai/insights`,
