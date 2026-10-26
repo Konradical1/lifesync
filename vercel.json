@@ -2,6 +2,10 @@
   "buildCommand": "echo 'API only'",
   "outputDirectory": ".",
   "installCommand": "npm install",
+  "functions": {
+    "api/ai/food-photo.ts": { "maxDuration": 30 },
+    "api/ai/food-coach.ts": { "maxDuration": 20 }
+  },
   "crons": [
     {
       "path": "/api/notifications/cron",

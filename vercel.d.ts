@@ -11,5 +11,6 @@ declare module "vercel" {
   export interface VercelResponse extends ServerResponse {
     status(code: number): this;
     json(body: unknown): this;
+    send(body: unknown): this;
   }
 }

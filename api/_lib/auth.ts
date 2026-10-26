@@ -68,7 +68,7 @@ export async function requireUser(
     const used = prev?.day === today ? Number(prev.n) || 0 : 0;
     if (used >= daily.max) {
       res.status(429).json({
-        error: `That's all ${daily.max} scans for today. Type it in instead, or snap again tomorrow.`,
+        error: `That's all ${daily.max} AI requests for today. Try again tomorrow.`,
       });
       return null;
     }
