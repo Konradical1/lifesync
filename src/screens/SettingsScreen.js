@@ -14,6 +14,7 @@ import * as Notifications from "expo-notifications";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../store/AuthContext";
 import { useTheme } from "../store/ThemeContext";
+import { clearPendingFood } from "../store/pendingFood";
 import { fonts } from "../theme/ios";
 import Card from "../components/ui/Card";
 import SegmentedControl from "../components/ui/SegmentedControl";
@@ -95,6 +96,7 @@ export default function SettingsScreen() {
               "@journalx_insights",
               "@journalx_water",
             ]);
+            clearPendingFood();
             await signOut();
           } catch (e) {
             Alert.alert("Error", e.message || "Failed to sign out.");
@@ -132,6 +134,7 @@ export default function SettingsScreen() {
                         "@journalx_insights",
                         "@journalx_water",
                       ]);
+                      clearPendingFood();
                       await deleteAccount();
                     } catch (e) {
                       Alert.alert(

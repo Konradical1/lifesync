@@ -1,9 +1,9 @@
 /**
- * The camera-logging moment: a scanner animation over the photo while Claude
- * reads it, an animated nutrition reveal, and a celebration when it's saved.
+ * Food logging visuals: a scanner animation while the AI estimates a meal,
+ * and an animated nutrition reveal.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import Animated, {
   Easing,
   FadeIn,
@@ -23,12 +23,10 @@ import Svg, { Circle, Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
-import ConfettiCannon from 'react-native-confetti-cannon';
 import { EVENT_TYPES } from '../../store/mockData';
 import { addDaysToDate } from '../../utils/time';
 
 const SCAN_GREEN = '#30D158';
-const PHOTO_STAGES = ['Spotting the food', 'Reading the label', 'Sizing the portion', 'Counting calories'];
 export const TEXT_STAGES = ['Looking it up', 'Checking the portion', 'Counting calories'];
 const STAGE_MS = 1000;
 const BEAM = 120;
@@ -75,8 +73,8 @@ function Ping({ delay, left, top }) {
   );
 }
 
-/** Scanner drawn over its parent (a photo, or a dark card for typed meals) while waiting on Claude. */
-export function ScanOverlay({ stages = PHOTO_STAGES }) {
+/** Scanner drawn over its parent (a photo, or a dark card for typed meals) while waiting on the AI. */
+export function ScanOverlay({ stages = TEXT_STAGES }) {
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [stage, setStage] = useState(0);
   const beam = useSharedValue(0);
@@ -215,13 +213,22 @@ function MacroRing({ label, grams, share, color, delay, palette, text }) {
   );
 }
 
-/** Big calorie count-up plus protein/carbs/fat rings that fill to their share of the meal's calories. */
-export function NutritionReveal({ calories, protein, carbs, fat, palette, text }) {
+/**
+ * Big calorie count-up, protein/carbs/fat rings that fill to their share of the
+ * meal's calories, then fiber, sugar and sodium under them ('—' when unknown).
+ */
+export function NutritionReveal({ calories, protein, carbs, fat, fiber, sugar, sodium, palette, text }) {
   const macroKcal = Math.max(1, protein * 4 + carbs * 4 + fat * 9);
   const macros = [
     ['Protein', protein, 4, palette.orange],
     ['Carbs', carbs, 4, palette.cyan],
     ['Fat', fat, 9, palette.purple],
+  ];
+  // Sugar and sodium are caps, so they stay neutral.
+  const extras = [
+    ['Fiber', fiber, 'g', palette.indigo],
+    ['Sugar', sugar, 'g', palette.secondaryLabel],
+    ['Sodium', sodium, 'mg', palette.secondaryLabel],
   ];
   return (
     <View>
@@ -243,36 +250,22 @@ export function NutritionReveal({ calories, protein, carbs, fat, palette, text }
           />
         ))}
       </View>
+      <Animated.View entering={FadeInDown.delay(700)} style={styles.rings}>
+        {extras.map(([label, value, unit, color]) => (
+          <View key={label} style={styles.extraCell}>
+            {value == null ? (
+              <Text style={[text.headline, { color: palette.tertiaryLabel }]}>—</Text>
+            ) : (
+              <View style={styles.extraValue}>
+                <CountUp value={value} delay={700} style={[text.headline, styles.tabular]} />
+                <Text style={text.caption}>{unit}</Text>
+              </View>
+            )}
+            <Text style={[text.caption, { color }]}>{label}</Text>
+          </View>
+        ))}
+      </Animated.View>
     </View>
-  );
-}
-
-/** Full-screen "logged" moment after saving: check pop, calories, streak and confetti. */
-export function LoggedCelebration({ calories, streak }) {
-  const { width } = useWindowDimensions();
-  return (
-    <Animated.View entering={FadeIn.duration(150)} style={StyleSheet.absoluteFill}>
-      <BlurView intensity={60} tint="systemThickMaterialDark" style={[StyleSheet.absoluteFill, styles.celebrate]}>
-        <Animated.View entering={ZoomIn.springify().damping(9)} style={styles.check}>
-          <Ionicons name="checkmark" size={58} color="#FFFFFF" />
-        </Animated.View>
-        <Animated.Text entering={FadeInDown.delay(150).springify()} style={styles.celebrateKcal}>
-          +{calories} kcal
-        </Animated.Text>
-        <Animated.Text entering={FadeInDown.delay(300).springify()} style={styles.celebrateStreak}>
-          {streak > 1 ? `🔥 ${streak}-day streak` : 'Logged. Keep it going 🔥'}
-        </Animated.Text>
-      </BlurView>
-      <ConfettiCannon
-        count={90}
-        origin={{ x: width / 2, y: -20 }}
-        explosionSpeed={320}
-        fallSpeed={2600}
-        fadeOut
-        autoStart
-        colors={[SCAN_GREEN, '#FFD60A', '#64D2FF', '#FF9F0A', '#BF5AF2', '#FFFFFF']}
-      />
-    </Animated.View>
   );
 }
 
@@ -403,32 +396,15 @@ const styles = StyleSheet.create({
   tabular: {
     fontVariant: ['tabular-nums'],
   },
-  celebrate: {
+  // Same width as a ring so each nutrient sits under a macro.
+  extraCell: {
+    width: RING,
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 14,
+    gap: 2,
   },
-  check: {
-    width: 104,
-    height: 104,
-    borderRadius: 52,
-    backgroundColor: SCAN_GREEN,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: SCAN_GREEN,
-    shadowOpacity: 0.7,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 0 },
-  },
-  celebrateKcal: {
-    color: '#FFFFFF',
-    fontSize: 40,
-    fontWeight: '800',
-    letterSpacing: -1,
-  },
-  celebrateStreak: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 17,
-    fontWeight: '600',
+  extraValue: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 2,
   },
 });

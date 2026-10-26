@@ -9,8 +9,6 @@ const FIELDS = [
   { key: 'gender', label: 'Gender', placeholder: 'Not set' },
   { key: 'age', label: 'Age', placeholder: 'Not set' },
   { key: 'weightGoal', label: 'Weight Goal', placeholder: 'Not set', suffix: 'lbs' },
-  { key: 'calorieGoal', label: 'Calorie Goal', placeholder: 'Not set', suffix: 'cal' },
-  { key: 'proteinGoal', label: 'Protein Goal', placeholder: 'Not set', suffix: 'g' },
   { key: 'waterGoalOz', label: 'Water Goal', placeholder: 'Not set', suffix: 'oz' },
 ];
 

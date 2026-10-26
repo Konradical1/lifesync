@@ -1,8 +1,9 @@
 import React, { useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet, Image } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Image, Alert } from 'react-native';
 import Animated, {
   Easing,
   FadeInDown,
+  FadeOut,
   LinearTransition,
   interpolate,
   useAnimatedStyle,
@@ -12,14 +13,15 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { useEvents } from '../../store/useStore';
-import { EVENT_TYPES } from '../../store/mockData';
-import { formatTime12h } from '../../utils/time';
+import { useStore, useTodayFood } from '../../store/useStore';
+import { formatTime12h, getTimeNow24h } from '../../utils/time';
 import { useTheme } from '../../store/ThemeContext';
+import { prepareFoodPhoto } from '../../api/ai';
 import pickFoodPhoto from '../../utils/pickFoodPhoto';
-import { usePendingFood, removePending } from '../../store/pendingFood';
+import { usePendingFood, queueFood, retryPending, removePending } from '../../store/pendingFood';
 import { foodStreak } from '../Food/FoodScan';
 import Card from '../ui/Card';
+const { healthTone } = require('../../utils/nutrition');
 
 const SCREEN_MARGIN = 20;
 
@@ -32,7 +34,8 @@ function todayKey() {
 export function FoodCapture() {
   const navigation = useNavigation();
   const { palette, text } = useTheme();
-  const streak = foodStreak(useEvents(), todayKey());
+  const { state } = useStore();
+  const streak = foodStreak(state.events, todayKey());
 
   // Slow "breathing" glow behind the snap button, inviting the next scan.
   const glow = useSharedValue(0);
@@ -44,9 +47,18 @@ export function FoodCapture() {
     transform: [{ scaleX: interpolate(glow.value, [0, 1], [1, 1.06]) }, { scaleY: interpolate(glow.value, [0, 1], [1, 1.3]) }],
   }));
 
+  // Snap and go: the photo joins the queue and is estimated while you stay on Home.
   const pick = async (source) => {
-    const photoUri = await pickFoodPhoto(source);
-    if (photoUri) navigation.navigate('FoodEvent', { photoUri });
+    const uri = await pickFoodPhoto(source);
+    if (!uri) return;
+    let image;
+    try {
+      image = await prepareFoodPhoto(uri);
+    } catch {
+      Alert.alert('Could not read that photo', 'Try another one.');
+      return;
+    }
+    queueFood({ image, date: todayKey(), time: getTimeNow24h(), goal: state.profile.goalType });
   };
 
   return (
@@ -103,50 +115,78 @@ export function FoodCapture() {
   );
 }
 
-/** Meals saved offline, waiting for internet to be estimated. */
-function PendingRows() {
+/** "Analyzing…" with a soft pulse while the queue estimates the meal. */
+function AnalyzingText() {
+  const { text } = useTheme();
+  const pulse = useSharedValue(1);
+  useEffect(() => {
+    pulse.value = withRepeat(withTiming(0.35, { duration: 900, easing: Easing.inOut(Easing.sin) }), -1, true);
+  }, [pulse]);
+  const pulseStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));
+  return <Animated.Text style={[text.footnote, pulseStyle]}>Analyzing…</Animated.Text>;
+}
+
+/** A queued meal: analyzing, waiting for internet, or failed (Retry). Always removable. */
+function PendingRow({ item, last }) {
   const { palette, text } = useTheme();
-  const pending = usePendingFood();
-  return pending.map((p) => (
-    <View
-      key={p.id}
-      style={[styles.row, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.separator }]}
+  return (
+    <Animated.View
+      entering={FadeInDown.springify()}
+      exiting={FadeOut}
+      layout={LinearTransition.springify()}
+      style={[styles.row, !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.separator }]}
     >
-      {p.image ? (
-        <Image source={{ uri: `data:image/jpeg;base64,${p.image}` }} style={styles.thumb} />
+      {item.image ? (
+        <Image source={{ uri: `data:image/jpeg;base64,${item.image}` }} style={styles.thumb} />
       ) : (
-        <Ionicons name="cloud-offline" size={22} color={palette.secondaryLabel} />
+        <View style={[styles.thumb, styles.thumbIcon, { backgroundColor: palette.fill }]}>
+          <Ionicons name="create-outline" size={20} color={palette.secondaryLabel} />
+        </View>
       )}
       <View style={styles.rowText}>
         <Text style={text.subheadline} numberOfLines={1}>
-          {p.text || 'Photo meal'}
+          {item.text || 'Photo meal'}
         </Text>
-        <Text style={[text.footnote, p.error && { color: palette.red }]} numberOfLines={2}>
-          {p.error || `${formatTime12h(p.time)} · estimates when you're online`}
-        </Text>
+        {item.status === 'analyzing' ? (
+          <AnalyzingText />
+        ) : item.status === 'waiting' ? (
+          <Text style={text.footnote}>Waiting for internet</Text>
+        ) : (
+          <Text style={[text.footnote, { color: palette.red }]} numberOfLines={2}>
+            {item.error || 'Could not estimate'}
+          </Text>
+        )}
       </View>
+      {item.status === 'error' && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Retry"
+          hitSlop={10}
+          onPress={() => retryPending(item.id)}
+        >
+          <Ionicons name="refresh-circle" size={26} color={palette.tint} />
+        </Pressable>
+      )}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Remove saved meal"
+        accessibilityLabel="Remove"
         hitSlop={10}
-        onPress={() => removePending(p.id)}
+        onPress={() => removePending(item.id)}
       >
         <Ionicons name="close-circle" size={22} color={palette.tertiaryLabel} />
       </Pressable>
-    </View>
-  ));
+    </Animated.View>
+  );
 }
 
-/** Today's meals, newest first, with a macro total line. */
+/** Meals still being estimated first, then today's meals newest first. Tap a meal for details. */
 export function TodayMeals() {
   const navigation = useNavigation();
   const { palette, text } = useTheme();
-  const pendingCount = usePendingFood().length;
-  const meals = useEvents(todayKey())
-    .filter((e) => e.type === EVENT_TYPES.food)
-    .sort((a, b) => (b.time || '').localeCompare(a.time || ''));
+  const pending = usePendingFood();
+  const meals = [...useTodayFood().meals].sort((a, b) => (b.time || '').localeCompare(a.time || ''));
 
-  if (!meals.length && !pendingCount) {
+  if (!meals.length && !pending.length) {
     return (
       <Card style={styles.card}>
         <Text style={[text.footnote, styles.empty]}>
@@ -156,60 +196,54 @@ export function TodayMeals() {
     );
   }
 
-  const total = (key) => meals.reduce((sum, e) => sum + (Number(e[key]) || 0), 0);
-
   return (
     <Card style={[styles.card, styles.listCard]}>
-      <View style={[styles.totals, { borderBottomColor: palette.separator }]}>
-        {[
-          ['Carbs', total('carbs'), palette.cyan],
-          ['Fat', total('fat'), palette.purple],
-          ['Protein', total('protein'), palette.orange],
-        ].map(([label, value, color]) => (
-          <Text key={label} style={text.caption}>
-            <Text style={{ color }}>●</Text> {label} {value}g
-          </Text>
-        ))}
-      </View>
-      <PendingRows />
-      {meals.map((meal, i) => (
-        <Animated.View key={meal.id} entering={FadeInDown.springify()} layout={LinearTransition.springify()}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`${meal.description}, ${meal.calories || 0} calories`}
-            onPress={() =>
-              navigation.navigate('CalendarTab', {
-                screen: 'Calendar',
-                params: { focusDate: meal.date, focusEventId: meal.id },
-              })
-            }
-            style={({ pressed }) => [
-              styles.row,
-              i < meals.length - 1 && {
-                borderBottomWidth: StyleSheet.hairlineWidth,
-                borderBottomColor: palette.separator,
-              },
-              pressed && { backgroundColor: palette.cardElevated },
-            ]}
-          >
-            <View style={styles.rowText}>
-              <Text style={text.subheadline} numberOfLines={1}>
-                {meal.description || 'Meal'}
-              </Text>
-              <Text style={text.footnote} numberOfLines={1}>
-                {formatTime12h(meal.time)}
-                {meal.note ? ` · ${meal.note}` : ''}
-              </Text>
-            </View>
-            <View style={styles.rowRight}>
-              <Text style={text.headline}>{meal.calories || 0}</Text>
-              <Text style={text.caption}>
-                {meal.protein || 0}p · {meal.carbs || 0}c · {meal.fat || 0}f
-              </Text>
-            </View>
-          </Pressable>
-        </Animated.View>
+      {pending.map((item, i) => (
+        <PendingRow key={item.id} item={item} last={!meals.length && i === pending.length - 1} />
       ))}
+      {meals.map((meal, i) => {
+        const score = meal.nutrition?.health_score;
+        const tone = healthTone(score);
+        const label = `${meal.description || 'Meal'}, ${meal.calories || 0} calories`;
+        return (
+          <Animated.View key={meal.id} entering={FadeInDown.springify()} layout={LinearTransition.springify()}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={tone ? `${label}, health ${score} out of 10` : label}
+              onPress={() => navigation.navigate('FoodEvent', { eventId: meal.id })}
+              style={({ pressed }) => [
+                styles.row,
+                i < meals.length - 1 && {
+                  borderBottomWidth: StyleSheet.hairlineWidth,
+                  borderBottomColor: palette.separator,
+                },
+                pressed && { backgroundColor: palette.cardElevated },
+              ]}
+            >
+              <View style={styles.rowText}>
+                <Text style={text.subheadline} numberOfLines={1}>
+                  {meal.description || 'Meal'}
+                </Text>
+                <Text style={text.footnote} numberOfLines={1}>
+                  {formatTime12h(meal.time)}
+                  {meal.note ? ` · ${meal.note}` : ''}
+                </Text>
+              </View>
+              {tone && (
+                <View style={[styles.chip, { backgroundColor: palette[tone] + '29' }]}>
+                  <Text style={[text.caption, { color: palette[tone] }]}>{score}/10</Text>
+                </View>
+              )}
+              <View style={styles.rowRight}>
+                <Text style={text.headline}>{meal.calories || 0}</Text>
+                <Text style={text.caption}>
+                  {meal.protein || 0}p · {meal.carbs || 0}c · {meal.fat || 0}f
+                </Text>
+              </View>
+            </Pressable>
+          </Animated.View>
+        );
+      })}
     </Card>
   );
 }
@@ -262,12 +296,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: 8,
   },
-  totals: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -283,6 +311,15 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 8,
+  },
+  thumbIcon: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
   },
   rowRight: {
     alignItems: 'flex-end',

@@ -11,7 +11,7 @@ function getEventDescription(event) {
     case EVENT_TYPES.sleep:
       return `${formatTime12h(event.startTime)} – ${formatTime12h(event.endTime)}`;
     case EVENT_TYPES.food:
-      return event.description ?? `${event.calories || 0} cal`;
+      return `${event.description || "Meal"} · ${event.calories || 0} kcal`;
     case EVENT_TYPES.exercise:
       return `${event.description ?? "Exercise"} · ${event.duration || 0} min`;
     case EVENT_TYPES.meds:

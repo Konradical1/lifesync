@@ -15,12 +15,13 @@ import {
 
 const FADE_DURATION = 120;
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useNavigation } from '@react-navigation/native';
 import { useStore } from '../../store/useStore';
 import { EVENT_TYPES } from '../../store/mockData';
 import { formatTime12h } from '../../utils/time';
 import { EVENT_TYPE_COLORS } from '../../theme/constants';
 import { useTheme } from '../../store/ThemeContext';
-import { extractFood, extractExercise } from '../../api/ai';
+import { extractExercise } from '../../api/ai';
 import { isSupabaseConfigured } from '../../api/supabase';
 import { deleteEventFromSupabase } from '../../api/supabaseSync';
 
@@ -36,6 +37,7 @@ function formatTime24h(d) {
 }
 
 export default function EventEditSheet({ event, onClose }) {
+  const navigation = useNavigation();
   const { dispatch } = useStore();
   const { palette, text, shape } = useTheme();
   const inputSurface = {
@@ -64,8 +66,6 @@ export default function EventEditSheet({ event, onClose }) {
   const [description, setDescription] = useState('');
   const [duration, setDuration] = useState('');
   const [calories, setCalories] = useState('');
-  const [protein, setProtein] = useState('');
-  const [carbs, setCarbs] = useState('');
   const [name, setName] = useState('');
   const [dosage, setDosage] = useState('');
   const [unit, setUnit] = useState('');
@@ -87,8 +87,6 @@ export default function EventEditSheet({ event, onClose }) {
     setDescription(event.description ?? '');
     setDuration(String(event.duration ?? ''));
     setCalories(String(event.calories ?? ''));
-    setProtein(String(event.protein ?? ''));
-    setCarbs(String(event.carbs ?? ''));
     setName(event.name ?? '');
     setDosage(String(event.dosage ?? ''));
     setUnit(event.unit ?? 'mg');
@@ -118,11 +116,8 @@ export default function EventEditSheet({ event, onClose }) {
         payload.endTime = formatTime24h(endTime);
         break;
       case EVENT_TYPES.food:
+        // Only the time is edited here; the rest (nutrition included) rides along in the spread.
         payload.time = formatTime24h(timeDate);
-        payload.description = description;
-        payload.calories = parseInt(calories, 10) || 0;
-        payload.protein = parseInt(protein, 10) || 0;
-        payload.carbs = parseInt(carbs, 10) || 0;
         break;
       case EVENT_TYPES.exercise:
         payload.time = formatTime24h(timeDate);
@@ -162,8 +157,6 @@ export default function EventEditSheet({ event, onClose }) {
     description,
     duration,
     calories,
-    protein,
-    carbs,
     name,
     dosage,
     unit,
@@ -171,7 +164,8 @@ export default function EventEditSheet({ event, onClose }) {
     visible,
   ]);
 
-  const handleClose = (skipSave = false) => {
+  // `then` runs once the sheet is gone, so a screen push never animates under the modal.
+  const handleClose = (skipSave = false, then) => {
     Keyboard.dismiss();
     setShowTimePicker(null);
     if (!skipSave) saveEvent();
@@ -182,6 +176,7 @@ export default function EventEditSheet({ event, onClose }) {
     }).start(() => {
       setVisible(false);
       onClose?.();
+      then?.();
     });
   };
 
@@ -243,6 +238,10 @@ export default function EventEditSheet({ event, onClose }) {
       case EVENT_TYPES.food:
         return (
           <>
+            <Text style={text.headline} numberOfLines={2}>{event.description || 'Meal'}</Text>
+            <Text style={[text.footnote, styles.mealMacros]}>
+              {`${event.calories || 0} kcal · ${event.protein || 0}p · ${event.carbs || 0}c · ${event.fat || 0}f`}
+            </Text>
             <Text style={[text.footnote, styles.label]}>Time</Text>
             <TouchableOpacity
               style={[styles.input, inputSurface]}
@@ -258,72 +257,14 @@ export default function EventEditSheet({ event, onClose }) {
                 onChange={(_, d) => d && setTimeDate(d)}
               />
             )}
-            <Text style={[text.footnote, styles.label]}>What did you eat?</Text>
-            <TextInput
-              style={[text.body, styles.input, inputSurface]}
-              value={description}
-              onChangeText={(t) => { setDescription(t); setAiError(null); }}
-              placeholder="Oatmeal with banana"
-              placeholderTextColor={palette.tertiaryLabel}
-            />
-            {aiError ? (
-              <Text style={[text.footnote, styles.aiError, { color: palette.red }]}>{aiError}</Text>
-            ) : null}
             <TouchableOpacity
-              style={[
-                styles.aiButton,
-                { backgroundColor: palette.fill },
-                aiLoading && styles.aiButtonDisabled,
-              ]}
-              onPress={async () => {
-                const t = description?.trim();
-                if (!t) return;
-                setAiLoading(true);
-                setAiError(null);
-                const result = await extractFood(t);
-                setAiLoading(false);
-                if (result.ok && result.data) {
-                  if (result.data.description != null) setDescription(result.data.description);
-                  if (result.data.calories != null) setCalories(String(result.data.calories));
-                  if (result.data.protein != null) setProtein(String(result.data.protein));
-                  if (result.data.carbs != null) setCarbs(String(result.data.carbs));
-                } else {
-                  setAiError(result.error || 'Could not get macros');
-                }
-              }}
-              disabled={aiLoading || !description?.trim()}
+              style={[styles.aiButton, { backgroundColor: palette.fill }]}
+              onPress={() =>
+                handleClose(false, () => navigation.navigate('FoodEvent', { eventId: event.id }))
+              }
             >
-              <Text style={[text.subheadline, { color: palette.tint }]}>
-                {aiLoading ? 'Getting macros…' : 'Fill with AI'}
-              </Text>
+              <Text style={[text.subheadline, { color: palette.tint }]}>Meal details</Text>
             </TouchableOpacity>
-            <Text style={[text.footnote, styles.label]}>Calories</Text>
-            <TextInput
-              style={[text.body, styles.input, inputSurface]}
-              value={calories}
-              onChangeText={setCalories}
-              placeholder="0"
-              placeholderTextColor={palette.tertiaryLabel}
-              keyboardType="number-pad"
-            />
-            <Text style={[text.footnote, styles.label]}>Protein (g)</Text>
-            <TextInput
-              style={[text.body, styles.input, inputSurface]}
-              value={protein}
-              onChangeText={setProtein}
-              placeholder="0"
-              placeholderTextColor={palette.tertiaryLabel}
-              keyboardType="number-pad"
-            />
-            <Text style={[text.footnote, styles.label]}>Carbs (g)</Text>
-            <TextInput
-              style={[text.body, styles.input, inputSurface]}
-              value={carbs}
-              onChangeText={setCarbs}
-              placeholder="0"
-              placeholderTextColor={palette.tertiaryLabel}
-              keyboardType="number-pad"
-            />
           </>
         );
       case EVENT_TYPES.exercise:
@@ -606,6 +547,9 @@ const styles = StyleSheet.create({
   label: {
     marginBottom: 8,
     marginTop: 12,
+  },
+  mealMacros: {
+    marginTop: 4,
   },
   input: {
     padding: 16,

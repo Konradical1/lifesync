@@ -16,9 +16,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useStore } from "../store/useStore";
-import { suggestGoals } from "../utils/goalSuggest";
 import { useTheme } from "../store/ThemeContext";
 
+import Card from "../components/ui/Card";
+import SegmentedControl from "../components/ui/SegmentedControl";
 import ProfileHeader from "../components/Profile/ProfileHeader";
 import QuickStatsRow from "../components/Profile/QuickStatsRow";
 import WeightCard from "../components/Profile/WeightCard";
@@ -26,6 +27,9 @@ import TrendsCard from "../components/Profile/TrendsCard";
 import HealthNotesCard from "../components/Profile/HealthNotesCard";
 import AboutYouSection from "../components/Profile/AboutYouSection";
 import WeightPicker from "../components/Profile/WeightPicker";
+
+const { suggestGoals } = require("../utils/goalSuggest");
+const { dailyTargets } = require("../utils/nutrition");
 
 const SCREEN_MARGIN = 20;
 const TAB_BAR_CLEARANCE = 140;
@@ -56,6 +60,21 @@ const FIELD_CONFIG = {
     placeholder: "e.g. 120",
     keyboard: "numeric",
   },
+  carbGoal: {
+    label: "Daily Carb Goal (g)",
+    placeholder: "e.g. 300",
+    keyboard: "numeric",
+  },
+  fatGoal: {
+    label: "Daily Fat Goal (g)",
+    placeholder: "e.g. 90",
+    keyboard: "numeric",
+  },
+  fiberGoal: {
+    label: "Daily Fiber Goal (g)",
+    placeholder: "e.g. 35",
+    keyboard: "numeric",
+  },
   waterGoalOz: {
     label: "Daily Water Goal (oz)",
     placeholder: "e.g. 64",
@@ -75,6 +94,37 @@ const FIELD_CONFIG = {
     multiline: true,
   },
 };
+
+// Goal, sex and activity feed the suggested targets (suggestGoals).
+const PLAN_PICKERS = [
+  {
+    field: "goalType",
+    label: "Goal",
+    options: [
+      { key: "gain", label: "Gain" },
+      { key: "maintain", label: "Maintain" },
+      { key: "lose", label: "Lose" },
+    ],
+  },
+  {
+    field: "sex",
+    label: "Sex",
+    options: [
+      { key: "male", label: "Male" },
+      { key: "female", label: "Female" },
+    ],
+  },
+  {
+    field: "activity",
+    label: "Activity",
+    options: [
+      { key: "sedentary", label: "Sedentary" },
+      { key: "light", label: "Light" },
+      { key: "moderate", label: "Moderate" },
+      { key: "active", label: "Active" },
+    ],
+  },
+];
 
 function formatLogDate(iso) {
   if (!iso) return "";
@@ -194,30 +244,25 @@ export default function ProfileScreen() {
     setWeightPickerField(null);
   }, []);
 
-  // --- Suggest goals ---
+  // --- Suggested goals ---
+  // Blank goals follow Goal, Sex and Activity (dailyTargets), so clear the
+  // saved overrides instead of freezing today's suggestion.
   const handleSuggestGoals = useCallback(() => {
     setSuggestError("");
-    const result = suggestGoals({
-      age: profile.age,
-      height: profile.height,
-      weight: profile.weight,
-    });
+    const result = suggestGoals(profile);
     if (result.error) {
       setSuggestError(result.error);
       return;
     }
     dispatch({
       type: "UPDATE_PROFILE",
-      payload: {
-        calorieGoal: String(result.calorieGoal),
-        proteinGoal: String(result.proteinGoal),
-      },
+      payload: { calorieGoal: "", proteinGoal: "", carbGoal: "", fatGoal: "", fiberGoal: "" },
     });
-    setSuggestError("");
-  }, [profile.age, profile.height, profile.weight, dispatch]);
+  }, [profile, dispatch]);
 
   const config = editingField ? FIELD_CONFIG[editingField] : null;
   const weightLogs = state.weightLogs || [];
+  const targets = dailyTargets(profile);
 
   const modalSurface = {
     backgroundColor: palette.card,
@@ -257,10 +302,48 @@ export default function ProfileScreen() {
         />
 
         <SectionHeader title="Daily goals" />
+        <Card style={styles.planCard}>
+          {PLAN_PICKERS.map(({ field, label, options }, i) => (
+            <View key={field} style={i > 0 && styles.planRow}>
+              <Text style={[text.eyebrow, styles.planLabel]}>
+                {label.toUpperCase()}
+              </Text>
+              <SegmentedControl
+                options={options}
+                value={profile[field]}
+                onChange={(key) =>
+                  dispatch({ type: "UPDATE_PROFILE", payload: { [field]: key } })
+                }
+                accessibilityLabel={label}
+              />
+            </View>
+          ))}
+        </Card>
         <QuickStatsRow
           profile={profile}
+          targets={targets}
           onEditField={(key) => openFieldEditor(key)}
         />
+        <View style={styles.suggestWrap}>
+          <TouchableOpacity
+            style={[styles.suggestButton, { backgroundColor: palette.fill }]}
+            onPress={handleSuggestGoals}
+            accessibilityRole="button"
+            accessibilityLabel="Use suggested goals"
+          >
+            <Ionicons name="sparkles-outline" size={16} color={palette.tint} />
+            <Text style={[text.subheadline, { color: palette.tint }]}>
+              Use suggested goals
+            </Text>
+          </TouchableOpacity>
+          {suggestError ? (
+            <Text
+              style={[text.footnote, styles.suggestError, { color: palette.red }]}
+            >
+              {suggestError}
+            </Text>
+          ) : null}
+        </View>
 
         <SectionHeader title="Body" />
         <WeightCard
@@ -287,27 +370,6 @@ export default function ProfileScreen() {
           profile={profile}
           onEditField={(key, large) => openFieldEditor(key, large)}
         />
-
-        <View style={styles.suggestWrap}>
-          <TouchableOpacity
-            style={[styles.suggestButton, { backgroundColor: palette.fill }]}
-            onPress={handleSuggestGoals}
-            accessibilityRole="button"
-            accessibilityLabel="Suggest goals from profile"
-          >
-            <Ionicons name="sparkles-outline" size={16} color={palette.tint} />
-            <Text style={[text.subheadline, { color: palette.tint }]}>
-              Suggest goals from profile
-            </Text>
-          </TouchableOpacity>
-          {suggestError ? (
-            <Text
-              style={[text.footnote, styles.suggestError, { color: palette.red }]}
-            >
-              {suggestError}
-            </Text>
-          ) : null}
-        </View>
       </ScrollView>
 
       {/* ===== Text Field Editor Modal ===== */}
@@ -547,10 +609,21 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 
-  /* Suggest Goals */
+  /* Plan (goal, sex, activity) */
+  planCard: {
+    marginHorizontal: SCREEN_MARGIN,
+    marginBottom: 8,
+  },
+  planRow: {
+    marginTop: 16,
+  },
+  planLabel: {
+    marginBottom: 8,
+  },
+
+  /* Suggest Goals (QuickStatsRow's marginBottom spaces it from the chips) */
   suggestWrap: {
     marginHorizontal: SCREEN_MARGIN,
-    marginTop: 30,
   },
   suggestButton: {
     flexDirection: "row",

@@ -17,7 +17,7 @@ import WeekStrip from "../components/Home/WeekStrip";
 import AISummaryCard from "../components/Home/AISummaryCard";
 import MoodSelector from "../components/Home/MoodSelector";
 import JournalEntry from "../components/Home/JournalEntry";
-import CalorieProteinGoals from "../components/Home/CalorieProteinGoals";
+import TodayNutrition from "../components/Home/TodayNutrition";
 import WaterTracker from "../components/Home/WaterTracker";
 import RecentEventsList from "../components/Home/RecentEventsList";
 import { FoodCapture, TodayMeals } from "../components/Home/FoodLog";
@@ -167,7 +167,7 @@ export default function HomeScreen() {
       <WeekStrip />
 
       <SectionHeader title="Today's Food" />
-      <CalorieProteinGoals animTrigger={animTrigger} loading={summaryLoading} />
+      <TodayNutrition animTrigger={animTrigger} loading={summaryLoading} />
       <FoodCapture />
       <View style={styles.mealsGap} />
       <TodayMeals />
