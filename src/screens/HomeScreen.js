@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useLayoutEffect, useMemo, useRef } from "react";
 import {
   FlatList,
   View,
@@ -7,7 +7,18 @@ import {
   RefreshControl,
   Platform,
   Pressable,
+  useWindowDimensions,
 } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Animated, {
+  interpolate,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
+import * as Haptics from "expo-haptics";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -20,14 +31,18 @@ import JournalEntry from "../components/Home/JournalEntry";
 import TodayNutrition from "../components/Home/TodayNutrition";
 import WaterTracker from "../components/Home/WaterTracker";
 import RecentEventsList from "../components/Home/RecentEventsList";
-import { FoodCapture, TodayMeals } from "../components/Home/FoodLog";
+import { FoodCapture, DayMeals, shortDay } from "../components/Home/FoodLog";
 import { LiquidGlass, LiquidGlassGroup } from "../components/ui/LiquidGlass";
 import { useTheme } from "../store/ThemeContext";
+import { addDaysToDate, dateKey } from "../utils/time";
 
 const REFRESH_ANIMATION_MS = 700;
 const SCREEN_MARGIN = 20;
 const QUICK_ACTION_SIZE = 56;
 const TAB_BAR_CLEARANCE = 140;
+const SWIPE_DISTANCE = 60;
+const SWIPE_VELOCITY = 500;
+const SLIDE_IN = 0.35; // a new day slides in from this fraction of the screen width
 
 function getQuickActions(palette) {
   return [
@@ -120,6 +135,96 @@ function QuickActions({ navigation }) {
   );
 }
 
+/** Week strip + one day's food. Swipe sideways or tap the strip to change day; tomorrow is off limits. */
+function FoodDays({ animTrigger, loading }) {
+  const { width } = useWindowDimensions();
+  const today = dateKey();
+  const [picked, setPicked] = useState(null); // null = today, so the view rolls over at midnight
+  const day = picked && picked < today ? picked : today;
+  const isToday = day === today;
+  const x = useSharedValue(0);
+  const slideFrom = useRef(0);
+
+  const goTo = useCallback(
+    (next) => {
+      if (next === day || next > today) {
+        x.value = withSpring(0);
+        return;
+      }
+      slideFrom.current = next > day ? 1 : -1;
+      Haptics.selectionAsync();
+      setPicked(next === today ? null : next);
+    },
+    [day, today, x]
+  );
+  const step = useCallback((dir) => goTo(addDaysToDate(day, dir)), [day, goTo]);
+
+  // New day's content slides in from the side it came from.
+  useLayoutEffect(() => {
+    if (!slideFrom.current) return;
+    x.value = slideFrom.current * width * SLIDE_IN;
+    x.value = withTiming(0, { duration: 220 });
+    slideFrom.current = 0;
+  }, [day, width, x]);
+
+  const pan = useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetX([-15, 15])
+        .failOffsetY([-12, 12])
+        .onUpdate((e) => {
+          // Rubber-band toward the future: there's no tomorrow to show.
+          x.value = isToday && e.translationX < 0 ? e.translationX / 4 : e.translationX;
+        })
+        .onEnd((e) => {
+          const dir =
+            e.translationX < -SWIPE_DISTANCE || e.velocityX < -SWIPE_VELOCITY
+              ? 1
+              : e.translationX > SWIPE_DISTANCE || e.velocityX > SWIPE_VELOCITY
+                ? -1
+                : 0;
+          if (!dir || (dir === 1 && isToday)) {
+            x.value = withSpring(0);
+            return;
+          }
+          x.value = withTiming(-dir * width, { duration: 160 }, (done) => {
+            if (done) runOnJS(step)(dir);
+          });
+        }),
+    [isToday, step, width, x]
+  );
+
+  const slideStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(Math.abs(x.value), [0, width], [1, 0]),
+    transform: [{ translateX: x.value }],
+  }));
+
+  const title = isToday
+    ? "Today's Food"
+    : day === addDaysToDate(today, -1)
+      ? "Yesterday's Food"
+      : shortDay(day);
+
+  return (
+    <GestureDetector gesture={pan}>
+      <View>
+        <WeekStrip day={day} today={today} onSelect={goTo} />
+        <SectionHeader
+          title={title}
+          actionLabel={isToday ? undefined : "Back to today"}
+          onAction={() => goTo(today)}
+        />
+        <Animated.View style={slideStyle}>
+          <TodayNutrition date={day} animTrigger={animTrigger} loading={loading} />
+          <FoodCapture date={day} />
+          <View style={styles.mealsGap} />
+          <DayMeals date={day} />
+        </Animated.View>
+      </View>
+    </GestureDetector>
+  );
+}
+
 export default function HomeScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -164,13 +269,7 @@ export default function HomeScreen() {
   const listHeader = (
     <>
       <Header />
-      <WeekStrip />
-
-      <SectionHeader title="Today's Food" />
-      <TodayNutrition animTrigger={animTrigger} loading={summaryLoading} />
-      <FoodCapture />
-      <View style={styles.mealsGap} />
-      <TodayMeals />
+      <FoodDays animTrigger={animTrigger} loading={summaryLoading} />
 
       <SectionHeader title="Your Day" />
       <AISummaryCard

@@ -41,6 +41,11 @@ export function snapTo15Minutes(minutes) {
 
 const MINS_PER_DAY = 24 * 60;
 
+/** Local YYYY-MM-DD for a Date (default now). */
+export function dateKey(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 /**
  * Add days to a date string (YYYY-MM-DD).
  */

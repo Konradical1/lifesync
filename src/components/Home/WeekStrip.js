@@ -1,86 +1,61 @@
-import React, { useMemo } from "react";
+import React from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
-import { useNavigation } from "@react-navigation/native";
 import { useTheme } from "../../store/ThemeContext";
+import { addDaysToDate } from "../../utils/time";
 
 const DAYS_IN_WEEK = 7;
 const PILL_RADIUS = 12;
 
-function formatDateKey(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+/** Monday-first week (YYYY-MM-DD keys) containing `day`. */
+function weekOf(day) {
+  const [y, m, d] = day.split("-").map(Number);
+  const weekday = (new Date(y, m - 1, d).getDay() + 6) % 7; // 0 = Monday
+  return Array.from({ length: DAYS_IN_WEEK }, (_, i) => addDaysToDate(day, i - weekday));
 }
 
-/** Monday-first week containing today. */
-function getCurrentWeek() {
-  const today = new Date();
-  const monday = new Date(today);
-  const weekday = (today.getDay() + 6) % 7; // 0 = Monday
-  monday.setDate(today.getDate() - weekday);
-  return Array.from({ length: DAYS_IN_WEEK }, (_, i) => {
-    const date = new Date(monday);
-    date.setDate(monday.getDate() + i);
-    return date;
-  });
-}
-
-/** Current-week day strip; today sits in a solid pill, future days are dimmed. */
-export default function WeekStrip() {
-  const navigation = useNavigation();
+/** Week strip around the selected day: selected in a solid pill, today in tint, future dimmed. */
+export default function WeekStrip({ day, today, onSelect }) {
   const { palette, text } = useTheme();
-  const week = useMemo(getCurrentWeek, []);
-  const todayKey = formatDateKey(new Date());
 
   return (
     <View style={styles.row}>
-      {week.map((date) => {
-        const key = formatDateKey(date);
-        const isToday = key === todayKey;
-        const isFuture = key > todayKey;
-        const dayName = date
-          .toLocaleDateString(undefined, { weekday: "short" })
-          .slice(0, 3);
+      {weekOf(day).map((key) => {
+        const [y, m, d] = key.split("-").map(Number);
+        const date = new Date(y, m - 1, d);
+        const isSelected = key === day;
+        const isToday = key === today;
+        const isFuture = key > today;
+        const dayName = date.toLocaleDateString(undefined, { weekday: "short" }).slice(0, 3);
+        const color = isSelected
+          ? palette.background
+          : isFuture
+            ? palette.tertiaryLabel
+            : isToday
+              ? palette.tint
+              : null;
         return (
           <Pressable
             key={key}
             accessibilityRole="button"
-            accessibilityLabel={`Open ${dayName} ${date.getDate()} in calendar`}
-            accessibilityState={{ selected: isToday }}
+            accessibilityLabel={`Show food for ${dayName} ${d}${isToday ? ", today" : ""}`}
+            accessibilityState={{ selected: isSelected, disabled: isFuture }}
             disabled={isFuture}
-            onPress={() =>
-              navigation.navigate("CalendarTab", {
-                screen: "Calendar",
-                params: { focusDate: key },
-              })
-            }
+            onPress={() => onSelect(key)}
             style={({ pressed }) => [
               styles.day,
-              isToday && { backgroundColor: palette.label },
+              isSelected && { backgroundColor: palette.label },
               pressed && styles.pressed,
             ]}
           >
-            <Text
-              style={[
-                text.caption,
-                styles.dayName,
-                isToday && { color: palette.background },
-                isFuture && { color: palette.tertiaryLabel },
-              ]}
-            >
-              {dayName}
-            </Text>
+            <Text style={[text.caption, styles.dayName, color && { color }]}>{dayName}</Text>
             <Text
               style={[
                 text.headline,
                 styles.dayNumber,
-                { color: palette.secondaryLabel },
-                isToday && { color: palette.background },
-                isFuture && { color: palette.tertiaryLabel },
+                { color: color || palette.secondaryLabel },
               ]}
             >
-              {String(date.getDate()).padStart(2, "0")}
+              {String(d).padStart(2, "0")}
             </Text>
           </Pressable>
         );

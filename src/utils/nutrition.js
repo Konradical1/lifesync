@@ -11,7 +11,7 @@ const DEFAULT_PROTEIN = 120;
 const SOURCES = ['label', 'brand', 'estimate'];
 const GRADE_WEIGHTS = { quality: 0.3, protein: 0.25, calories: 0.2, fiber: 0.15, sugar: 0.1 };
 const GRADE_REASONS = {
-  quality: 'Mostly processed or sugary food so far',
+  quality: 'Mostly processed or sugary food',
   protein: 'Protein is behind',
   under: 'Calories are behind',
   over: 'Over your calorie target',

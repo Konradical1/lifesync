@@ -65,7 +65,7 @@ assert.equal(dayGrade(balanced, targets, { goal: 'gain', hour: 21 }).letter, 'A'
 assert.equal(dayGrade(balanced.slice(0, 2), targets, { goal: 'gain', hour: 13 }).letter, 'A', 'lunchtime is paced, not an F');
 assert.equal(dayGrade([], targets, { hour: 12 }), null);
 assert.equal(dayGrade([{ calories: 600, protein: 40 }], targets, { hour: 12 }).letter.length, 1, 'meals without a health score still grade');
-assert.equal(dayGrade(junk, targets, { goal: 'gain', hour: 21 }).reason, 'Mostly processed or sugary food so far');
+assert.equal(dayGrade(junk, targets, { goal: 'gain', hour: 21 }).reason, 'Mostly processed or sugary food');
 
 // What-to-eat-next gap line.
 assert.equal(

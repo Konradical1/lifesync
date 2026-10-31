@@ -547,11 +547,9 @@ export function useWeightLogs() {
   return state.weightLogs;
 }
 
-/** Today's food events (unsorted) and their summed nutrition. */
-export function useTodayFood() {
+/** One day's food events (unsorted) and their summed nutrition. */
+export function useDayFood(date) {
   const { state } = useStore();
-  const d = new Date();
-  const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const meals = state.events.filter((e) => e.type === EVENT_TYPES.food && e.date === date);
   return { date, meals, totals: dayTotals(meals) };
 }

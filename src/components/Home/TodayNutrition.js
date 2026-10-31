@@ -2,9 +2,9 @@ import React, { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Animated as RNAnimated } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
-import { useStore, useTodayFood } from "../../store/useStore";
+import { useStore, useDayFood } from "../../store/useStore";
 import { getFoodIdea } from "../../api/ai";
-import { getTimeNow24h } from "../../utils/time";
+import { dateKey, getTimeNow24h } from "../../utils/time";
 import Card from "../ui/Card";
 import StatBar from "./StatBar";
 import { useTheme } from "../../store/ThemeContext";
@@ -60,17 +60,18 @@ function NumberTicker({ value, animTrigger, style }) {
   return <Text style={style}>{display.toLocaleString()}</Text>;
 }
 
-/** Today's calories, macros, sugar/sodium caps, day grade and a "what to eat next" nudge. */
-export default function TodayNutrition({ animTrigger = 0, loading = false }) {
+/** A day's calories, macros, sugar/sodium caps and grade; today also gets a "what to eat next" nudge. */
+export default function TodayNutrition({ date, animTrigger = 0, loading = false }) {
   const { palette, text } = useTheme();
   const { state } = useStore();
-  const { date, meals, totals } = useTodayFood();
+  const { meals, totals } = useDayFood(date);
+  const isToday = date === dateKey();
   const profile = state.profile || {};
   const targets = dailyTargets(profile);
   const now = new Date();
   const grade = dayGrade(meals, targets, {
     goal: profile.goalType,
-    hour: now.getHours() + now.getMinutes() / 60,
+    hour: isToday ? now.getHours() + now.getMinutes() / 60 : 24,
   });
   const gradeColor = grade ? palette[GRADE_COLORS[grade.letter]] : null;
 
@@ -81,7 +82,7 @@ export default function TodayNutrition({ animTrigger = 0, loading = false }) {
   // Keyed on date + meal count (not totals) so edits don't spend coach calls;
   // debounced so meals landing close together share one call.
   useEffect(() => {
-    if (state.loading) return undefined;
+    if (state.loading || !isToday) return undefined;
     const cached = ideaCache.get(ideaKey);
     setIdea(cached ?? null);
     setIdeaLoading(!cached);
@@ -110,7 +111,7 @@ export default function TodayNutrition({ animTrigger = 0, loading = false }) {
       live = false;
       clearTimeout(timer);
     };
-  }, [ideaKey, state.loading]);
+  }, [ideaKey, state.loading, isToday]);
 
   return (
     <Card style={styles.card}>
@@ -136,7 +137,8 @@ export default function TodayNutrition({ animTrigger = 0, loading = false }) {
                 </Text>
               </View>
               <Text style={[text.footnote, styles.reason]}>
-                {grade?.reason ?? "Log a meal to get today's grade."}
+                {grade?.reason ??
+                  (isToday ? "Log a meal to get today's grade." : "Nothing logged this day.")}
               </Text>
             </View>
             <View
@@ -185,22 +187,24 @@ export default function TodayNutrition({ animTrigger = 0, loading = false }) {
             </Text>
           </View>
 
-          <View style={[styles.next, { borderTopColor: palette.separator }]}>
-            <Text style={text.eyebrow}>WHAT TO EAT NEXT</Text>
-            <Text style={[text.subheadline, styles.gapLine]}>
-              {gapLine(totals, targets) ?? "Targets hit for today. Nice."}
-            </Text>
-            {ideaLoading ? (
-              <SkeletonBar width="85%" style={styles.ideaSkeleton} />
-            ) : idea ? (
-              <Animated.View entering={FadeIn.duration(300)} style={styles.idea}>
-                <Ionicons name="sparkles" size={15} color={palette.green} style={styles.ideaIcon} />
-                <Text style={[text.footnote, styles.ideaText]} numberOfLines={3}>
-                  {idea}
-                </Text>
-              </Animated.View>
-            ) : null}
-          </View>
+          {isToday && (
+            <View style={[styles.next, { borderTopColor: palette.separator }]}>
+              <Text style={text.eyebrow}>WHAT TO EAT NEXT</Text>
+              <Text style={[text.subheadline, styles.gapLine]}>
+                {gapLine(totals, targets) ?? "Targets hit for today. Nice."}
+              </Text>
+              {ideaLoading ? (
+                <SkeletonBar width="85%" style={styles.ideaSkeleton} />
+              ) : idea ? (
+                <Animated.View entering={FadeIn.duration(300)} style={styles.idea}>
+                  <Ionicons name="sparkles" size={15} color={palette.green} style={styles.ideaIcon} />
+                  <Text style={[text.footnote, styles.ideaText]} numberOfLines={3}>
+                    {idea}
+                  </Text>
+                </Animated.View>
+              ) : null}
+            </View>
+          )}
         </>
       )}
     </Card>

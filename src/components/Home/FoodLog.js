@@ -13,8 +13,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { useStore, useTodayFood } from '../../store/useStore';
-import { formatTime12h, getTimeNow24h } from '../../utils/time';
+import { useStore, useDayFood } from '../../store/useStore';
+import { dateKey, formatTime12h, getTimeNow24h } from '../../utils/time';
 import { useTheme } from '../../store/ThemeContext';
 import { prepareFoodPhoto } from '../../api/ai';
 import pickFoodPhoto from '../../utils/pickFoodPhoto';
@@ -25,17 +25,19 @@ const { healthTone } = require('../../utils/nutrition');
 
 const SCREEN_MARGIN = 20;
 
-function todayKey() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+/** "Thu, Oct 30" for a YYYY-MM-DD key. */
+export function shortDay(key) {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
-/** Big camera-first capture row: snap, upload, or type a meal. */
-export function FoodCapture() {
+/** Big camera-first capture row: snap, upload, or type a meal. Logs into `date` (Home's selected day). */
+export function FoodCapture({ date }) {
   const navigation = useNavigation();
   const { palette, text } = useTheme();
   const { state } = useStore();
-  const streak = foodStreak(state.events, todayKey());
+  const isToday = date === dateKey();
+  const streak = foodStreak(state.events, dateKey());
 
   // Slow "breathing" glow behind the snap button, inviting the next scan.
   const glow = useSharedValue(0);
@@ -58,7 +60,7 @@ export function FoodCapture() {
       Alert.alert('Could not read that photo', 'Try another one.');
       return;
     }
-    queueFood({ image, date: todayKey(), time: getTimeNow24h(), goal: state.profile.goalType });
+    queueFood({ image, date, time: getTimeNow24h(), goal: state.profile.goalType });
   };
 
   return (
@@ -82,7 +84,7 @@ export function FoodCapture() {
           <View>
             <Text style={[text.headline, styles.snapLabel]}>Snap a meal</Text>
             <Text style={[text.caption, styles.snapStreak]}>
-              {streak ? `🔥 ${streak}-day streak` : 'Start a streak today'}
+              {!isToday ? `Adds to ${shortDay(date)}` : streak ? `🔥 ${streak}-day streak` : 'Start a streak today'}
             </Text>
           </View>
         </Pressable>
@@ -102,7 +104,7 @@ export function FoodCapture() {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Describe a meal"
-        onPress={() => navigation.navigate('FoodEvent')}
+        onPress={() => navigation.navigate('FoodEvent', { date })}
         style={({ pressed }) => [
           styles.smallButton,
           { backgroundColor: palette.card },
@@ -179,18 +181,18 @@ function PendingRow({ item, last }) {
   );
 }
 
-/** Meals still being estimated first, then today's meals newest first. Tap a meal for details. */
-export function TodayMeals() {
+/** Meals still being estimated first, then the day's meals newest first. Tap a meal for details. */
+export function DayMeals({ date }) {
   const navigation = useNavigation();
   const { palette, text } = useTheme();
-  const pending = usePendingFood();
-  const meals = [...useTodayFood().meals].sort((a, b) => (b.time || '').localeCompare(a.time || ''));
+  const pending = usePendingFood().filter((p) => p.date === date);
+  const meals = [...useDayFood(date).meals].sort((a, b) => (b.time || '').localeCompare(a.time || ''));
 
   if (!meals.length && !pending.length) {
     return (
       <Card style={styles.card}>
         <Text style={[text.footnote, styles.empty]}>
-          No meals yet today. Snap your first one.
+          {date === dateKey() ? 'No meals yet today. Snap your first one.' : `Nothing logged on ${shortDay(date)}.`}
         </Text>
       </Card>
     );

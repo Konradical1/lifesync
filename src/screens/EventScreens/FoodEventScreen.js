@@ -66,7 +66,7 @@ function toFields(meal) {
   };
 }
 
-/** No params: log a meal into the background queue. params.eventId: view and edit a logged meal. */
+/** No eventId: log a meal into the background queue (params.date, default today). params.eventId: view and edit a logged meal. */
 export default function FoodEventScreen() {
   const navigation = useNavigation();
   const eventId = useRoute().params?.eventId;
@@ -108,6 +108,7 @@ export default function FoodEventScreen() {
 /** Snap, upload or describe a meal: it's estimated in the background while we head back to Home. */
 function AddMeal() {
   const navigation = useNavigation();
+  const date = useRoute().params?.date || formatDateKey(new Date());
   const { palette, text } = useTheme();
   const { state } = useStore();
   const [description, setDescription] = useState('');
@@ -115,7 +116,7 @@ function AddMeal() {
   const [error, setError] = useState(null);
 
   const queueAndLeave = (entry) => {
-    queueFood({ ...entry, date: formatDateKey(new Date()), time: getTimeNow24h(), goal: state.profile.goalType });
+    queueFood({ ...entry, date, time: getTimeNow24h(), goal: state.profile.goalType });
     // Lands on Home from either stack (navigating to the Home route by name would push a second one).
     navigation.popToTop();
     navigation.getParent()?.navigate('HomeTab');
