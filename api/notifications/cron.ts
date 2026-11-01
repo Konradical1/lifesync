@@ -216,8 +216,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // Verify cron secret when called via GET (Vercel Cron sets this header)
-  if (req.method === "GET" && CRON_SECRET) {
+  // Verify cron secret for GET (Vercel Cron sets this header) and manual POSTs
+  if (CRON_SECRET) {
     const auth = req.headers["authorization"];
     if (auth !== `Bearer ${CRON_SECRET}`) {
       return res.status(401).json({ error: "Unauthorized" });
