@@ -77,4 +77,6 @@ You need Node 20+, Xcode, a Supabase project, an OpenRouter key and (for the API
 5. App: `npm run ios` (`expo run:ios`) builds and runs a development build. `scripts/ios-device.sh` builds a Release app and installs it on a connected iPhone with a free Apple developer account.
 6. Tests: `npm run test:nutrition` and `npm run test:store-merge`.
 
+The app uses two commercial fonts (Bicyclette and Tanseek) that are licensed, not redistributable, so they aren't in this repo. To build, put your own licensed copies in `assets/fonts/` with the file names `App.js` loads, or swap those entries for any other font.
+
 Setup notes for sign-in providers and the App Store are in [DEPLOYMENT.md](DEPLOYMENT.md). `SUPABASE_SETUP.md` and `docs/API_KEY_SETUP.md` are older notes from the JournalX version.
