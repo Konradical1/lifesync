@@ -2,7 +2,7 @@
 
 An iPhone app for logging meals by photo, journaling and tracking the rest of your day, with AI that estimates nutrition and summarizes how the day went.
 
-> The repo is named JournalX for historical reasons. The app started as "JournalX" in February 2026 and was renamed LifeSync before the TestFlight beta. Some internal names (the Expo slug `JournalX2`, the `@journalx_` storage prefix) still use the old name so existing installs keep their data.
+> The app started as "JournalX" in February 2026 and was renamed LifeSync before the TestFlight beta. Some internal names (the Expo slug `JournalX2`, the `@journalx_` storage prefix) still use the old name so existing installs keep their data.
 
 **Beta:** [join on TestFlight](https://testflight.apple.com/join/39JxNPXm)
 
